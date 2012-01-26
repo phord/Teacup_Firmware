@@ -68,12 +68,13 @@
 
 	valid range = 20 to 4'0960'000 (0.02 to 40960 steps/mm)
 */
-#define	STEPS_PER_M_X					40000 / 6 * 100 / 53
+#define	STEPS_PER_M_X					12450 // 4000 / 6 * 100 / 53
 #define	STEPS_PER_M_Y					12450 // Empirically determined half-step value
 #define	STEPS_PER_M_Z					320000
 
 /// http://blog.arcol.hu/?p=157 may help with this one
-#define	STEPS_PER_M_E					96271
+#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
+//#define	STEPS_PER_M_E					43000  // Empirically determined (mm of feedstock)
 
 
 /*
@@ -84,8 +85,8 @@
 */
 
 /// used for G0 rapid moves and as a cap for all other feedrates
-#define	MAXIMUM_FEEDRATE_X			20000
-#define	MAXIMUM_FEEDRATE_Y			20000
+#define	MAXIMUM_FEEDRATE_X			14000
+#define	MAXIMUM_FEEDRATE_Y			18000
 #define	MAXIMUM_FEEDRATE_Z			200
 #define	MAXIMUM_FEEDRATE_E			2000
 
@@ -151,7 +152,7 @@
 	how fast to accelerate when using ACCELERATION_RAMPING.
 		given in mm/s^2, decimal allowed, useful range 1. to 10'000. Start with 10. for milling (high precision) or 1000. for printing
 */
-#define ACCELERATION 1000.
+#define ACCELERATION 5000.
 
 /** \def ACCELERATION_TEMPORAL
 	temporal step algorithm
