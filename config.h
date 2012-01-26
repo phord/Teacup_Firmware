@@ -68,8 +68,8 @@
 
 	valid range = 20 to 4'0960'000 (0.02 to 40960 steps/mm)
 */
-#define	STEPS_PER_M_X					40000
-#define	STEPS_PER_M_Y					40000
+#define	STEPS_PER_M_X					40000 / 6 * 100 / 53
+#define	STEPS_PER_M_Y					12450 // Empirically determined half-step value
 #define	STEPS_PER_M_Z					320000
 
 /// http://blog.arcol.hu/?p=157 may help with this one
@@ -84,8 +84,8 @@
 */
 
 /// used for G0 rapid moves and as a cap for all other feedrates
-#define	MAXIMUM_FEEDRATE_X			2000
-#define	MAXIMUM_FEEDRATE_Y			2000
+#define	MAXIMUM_FEEDRATE_X			20000
+#define	MAXIMUM_FEEDRATE_Y			20000
 #define	MAXIMUM_FEEDRATE_Z			200
 #define	MAXIMUM_FEEDRATE_E			2000
 
