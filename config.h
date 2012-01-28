@@ -86,8 +86,8 @@
 
 /// used for G0 rapid moves and as a cap for all other feedrates
 #define	MAXIMUM_FEEDRATE_X			14000
-#define	MAXIMUM_FEEDRATE_Y			18000
-#define	MAXIMUM_FEEDRATE_Z			200
+#define	MAXIMUM_FEEDRATE_Y			12000          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
+#define	MAXIMUM_FEEDRATE_Z			300
 #define	MAXIMUM_FEEDRATE_E			2000
 
 /// used when searching endstops and as default feedrate
@@ -152,7 +152,7 @@
 	how fast to accelerate when using ACCELERATION_RAMPING.
 		given in mm/s^2, decimal allowed, useful range 1. to 10'000. Start with 10. for milling (high precision) or 1000. for printing
 */
-#define ACCELERATION 5000.
+#define ACCELERATION 1000.
 
 /** \def ACCELERATION_TEMPORAL
 	temporal step algorithm
