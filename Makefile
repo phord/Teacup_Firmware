@@ -37,7 +37,7 @@ MCU_TARGET = atmega644p
 # MCU_TARGET = at90usb1287
 
 # CPU clock rate
-F_CPU = 16000000L
+F_CPU = 20000000L
 # F_CPU = 8000000L
 DEFS = -DF_CPU=$(F_CPU)
 
@@ -65,12 +65,12 @@ PROGPORT = /dev/arduino
 # atmega168
 #PROGBAUD = 19200
 # atmega328p, 644p, 1280
-PROGBAUD = 57600
+# PROGBAUD = 57600
 # atmega 2560
-# PROGBAUD = 115200
+PROGBAUD = 115200
 
 # at least mega2560 needs stk500v2
-PROGID = arduino
+PROGID = stk500v2
 
 ##############################################################################
 #                                                                            #
