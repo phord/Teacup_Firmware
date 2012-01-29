@@ -59,8 +59,8 @@ AVRDUDECONF = /etc/avrdude.conf
 #                                                                            #
 ##############################################################################
 
-PROGPORT = /dev/arduino
-# PROGPORT = /dev/ttyUSB0
+# PROGPORT = /dev/arduino
+PROGPORT = $(firstword $(wildcard /dev/ttyUSB[0-9]))
 
 # atmega168
 #PROGBAUD = 19200
