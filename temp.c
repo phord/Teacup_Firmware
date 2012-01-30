@@ -102,9 +102,16 @@ void temp_init() {
 	}
 }
 
+// Lame: we don't have a system clock otherwise -- that I know of -- so make a millisecond counter
+uint32_t heater_millis = 0;
+
 /// called every 10ms from clock.c - check all temp sensors that are ready for checking
 void temp_sensor_tick() {
 	temp_sensor_t i = 0;
+
+	// Mark time
+	heater_millis += 10 ;
+
 	for (; i < NUM_TEMP_SENSORS; i++) {
 		if (temp_sensors_runtime[i].next_read_time) {
 			temp_sensors_runtime[i].next_read_time--;
