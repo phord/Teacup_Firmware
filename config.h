@@ -70,10 +70,11 @@
 */
 #define	STEPS_PER_M_X					12450 // 4000 / 6 * 100 / 53
 #define	STEPS_PER_M_Y					12450 // Empirically determined half-step value
-#define	STEPS_PER_M_Z					320000
+#define	STEPS_PER_M_Z					1133858 // 8 * 200 / (25.4mpi/18 tpi) * 1000
 
 /// http://blog.arcol.hu/?p=157 may help with this one
-#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
+#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
+// #define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
 //#define	STEPS_PER_M_E					43000  // Empirically determined (mm of feedstock)
 
 
