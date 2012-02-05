@@ -70,7 +70,7 @@
 */
 #define	STEPS_PER_M_X					12450 // 4000 / 6 * 100 / 53
 #define	STEPS_PER_M_Y					12450 // Empirically determined half-step value
-#define	STEPS_PER_M_Z					1133858 // 8 * 200 / (25.4mpi/18 tpi) * 1000
+#define	STEPS_PER_M_Z					1330000 // 8 * 200 / (25.4mpi/18 tpi) * 1000 * EmpiricalCalibration
 
 /// http://blog.arcol.hu/?p=157 may help with this one
 //#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
@@ -88,8 +88,8 @@
 /// used for G0 rapid moves and as a cap for all other feedrates
 #define	MAXIMUM_FEEDRATE_X			14000
 #define	MAXIMUM_FEEDRATE_Y			12000          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
-#define	MAXIMUM_FEEDRATE_Z			50
-#define	MAXIMUM_FEEDRATE_E			2000
+#define	MAXIMUM_FEEDRATE_Z			100
+#define	MAXIMUM_FEEDRATE_E			200
 
 /// used when searching endstops and as default feedrate
 #define	SEARCH_FEEDRATE_X			50
@@ -368,8 +368,8 @@ DEFINE_HEATER(bed, PB3)
 /**
 	Baud rate for the connection to the host. Usually 115200, other common values are 19200, 38400 or 57600.
 */
-#define	BAUD	38400
-//#define	BAUD	115200
+//#define	BAUD	38400
+#define	BAUD	115200
 
 /** \def XONXOFF
 	Xon/Xoff flow control.
