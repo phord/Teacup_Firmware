@@ -73,8 +73,8 @@
 #define	STEPS_PER_M_Z					1133858 // 8 * 200 / (25.4mpi/18 tpi) * 1000
 
 /// http://blog.arcol.hu/?p=157 may help with this one
-#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
-// #define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
+//#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
+#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
 //#define	STEPS_PER_M_E					43000  // Empirically determined (mm of feedstock)
 
 
@@ -111,11 +111,11 @@
 	Define them to your machine's size relative to what your host considers to be the origin.
 */
 
-//#define	X_MIN			0.0
-//#define	X_MAX			200.0
+#define	X_MIN			0.0
+#define	X_MAX			190.0
 
-//#define	Y_MIN			0.0
-//#define	Y_MAX			200.0
+#define	Y_MIN			0.0
+#define	Y_MAX			140.0
 
 //#define	Z_MIN			0.0
 //#define	Z_MAX			140.0
@@ -199,7 +199,7 @@
 
 #define	X_STEP_PIN						DIO19
 #define	X_DIR_PIN							DIO18
-#define	X_MIN_PIN							DIO7
+//#define	X_MIN_PIN							DIO7
 //#define	X_MAX_PIN							xxxx
 //#define	X_ENABLE_PIN					xxxx
 //#define	X_INVERT_DIR
@@ -209,7 +209,7 @@
 
 #define	Y_STEP_PIN						DIO23
 #define	Y_DIR_PIN							DIO22
-#define	Y_MIN_PIN							DIO5
+//#define	Y_MIN_PIN							DIO5
 //#define	Y_MAX_PIN							xxxx
 //#define	Y_ENABLE_PIN					xxxx
 //#define	Y_INVERT_DIR
