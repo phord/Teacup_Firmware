@@ -368,7 +368,8 @@ DEFINE_HEATER(bed, PB3)
 /**
 	Baud rate for the connection to the host. Usually 115200, other common values are 19200, 38400 or 57600.
 */
-#define	BAUD	115200
+#define	BAUD	38400
+//#define	BAUD	115200
 
 /** \def XONXOFF
 	Xon/Xoff flow control.
