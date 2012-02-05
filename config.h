@@ -141,19 +141,19 @@
 	acceleration, reprap style.
 		Each movement starts at the speed of the previous command and accelerates or decelerates linearly to reach target speed at the end of the movement.
 */
-// #define ACCELERATION_REPRAP
+//#define ACCELERATION_REPRAP
 
 /** \def ACCELERATION_RAMPING
 	acceleration and deceleration ramping.
 		Each movement starts at (almost) no speed, linearly accelerates to target speed and decelerates just in time to smoothly stop at the target. alternative to ACCELERATION_REPRAP
 */
-#define ACCELERATION_RAMPING
+//#define ACCELERATION_RAMPING
 
 /** \def ACCELERATION
 	how fast to accelerate when using ACCELERATION_RAMPING.
 		given in mm/s^2, decimal allowed, useful range 1. to 10'000. Start with 10. for milling (high precision) or 1000. for printing
 */
-#define ACCELERATION 1000.
+//#define ACCELERATION 1000.
 
 /** \def ACCELERATION_TEMPORAL
 	temporal step algorithm
@@ -167,7 +167,7 @@
 
 		// TODO: figure out how to add acceleration to this algorithm
 */
-// #define ACCELERATION_TEMPORAL
+#define ACCELERATION_TEMPORAL
 
 
 
