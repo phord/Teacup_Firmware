@@ -88,13 +88,13 @@
 /// used for G0 rapid moves and as a cap for all other feedrates
 #define	MAXIMUM_FEEDRATE_X			14000
 #define	MAXIMUM_FEEDRATE_Y			12000          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
-#define	MAXIMUM_FEEDRATE_Z			300
+#define	MAXIMUM_FEEDRATE_Z			50
 #define	MAXIMUM_FEEDRATE_E			2000
 
 /// used when searching endstops and as default feedrate
 #define	SEARCH_FEEDRATE_X			50
 #define	SEARCH_FEEDRATE_Y			50
-#define	SEARCH_FEEDRATE_Z			50
+#define	SEARCH_FEEDRATE_Z			30
 // no SEARCH_FEEDRATE_E, as E can't be searched
 
 /** \def SLOW_HOMING
