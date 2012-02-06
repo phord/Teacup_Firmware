@@ -122,8 +122,9 @@
 
 /**	\def E_ABSOLUTE
 	Some G-Code creators produce relative length commands for the extruder, others absolute ones. G-Code using absolute lengths can be recognized when there are G92 E0 commands from time to time. If you have G92 E0 in your G-Code, define this flag.
+    Can be overridden with M82/M83.
 */
-// #define E_ABSOLUTE
+#define E_ABSOLUTE
 
 
 
