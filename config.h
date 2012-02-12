@@ -70,7 +70,7 @@
 */
 #define	STEPS_PER_M_X					12450 // 4000 / 6 * 100 / 53
 #define	STEPS_PER_M_Y					12450 // Empirically determined half-step value
-#define	STEPS_PER_M_Z					1330000 // 8 * 200 / (25.4mpi/18 tpi) * 1000 * EmpiricalCalibration
+#define	STEPS_PER_M_Z					(1330000/4) // 8/4 * 200 / (25.4mpi/18 tpi) * 1000 * EmpiricalCalibration
 
 /// http://blog.arcol.hu/?p=157 may help with this one
 //#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
