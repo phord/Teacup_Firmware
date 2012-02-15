@@ -115,7 +115,7 @@
 #define	X_MAX			190.0
 
 #define	Y_MIN			0.0
-#define	Y_MAX			140.0
+#define	Y_MAX			170.0
 
 //#define	Z_MIN			0.0
 //#define	Z_MAX			140.0
@@ -209,7 +209,7 @@
 
 #define	Y_STEP_PIN						DIO23
 #define	Y_DIR_PIN							DIO22
-//#define	Y_MIN_PIN							DIO5
+#define	Y_MIN_PIN							DIO5
 //#define	Y_MAX_PIN							xxxx
 //#define	Y_ENABLE_PIN					xxxx
 //#define	Y_INVERT_DIR
@@ -456,7 +456,7 @@ PWM value for 'off'
 	number of steps to run into the endstops intentionally
 		As Endstops trigger false alarm sometimes, Teacup debounces them by counting a number of consecutive positives. Valid range is 1...255. Use 4 or less for reliable endstops, 8 or even more for flaky ones.
 */
-#define	ENDSTOP_STEPS	4
+#define	ENDSTOP_STEPS	3
 
 
 
