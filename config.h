@@ -92,9 +92,9 @@
 #define	MAXIMUM_FEEDRATE_E			120
 
 /// used when searching endstops and as default feedrate
-#define	SEARCH_FEEDRATE_X			50
-#define	SEARCH_FEEDRATE_Y			50
-#define	SEARCH_FEEDRATE_Z			20
+#define	SEARCH_FEEDRATE_X			150
+#define	SEARCH_FEEDRATE_Y			150
+#define	SEARCH_FEEDRATE_Z			75
 // no SEARCH_FEEDRATE_E, as E can't be searched
 
 /** \def SLOW_HOMING
