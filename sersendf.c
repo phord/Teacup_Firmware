@@ -5,7 +5,9 @@
 */
 
 #include	<stdarg.h>
-#include	<avr/pgmspace.h>
+#ifndef SIMULATION
+	#include <avr/pgmspace.h>
+#endif
 
 #include	"serial.h"
 #include	"sermsg.h"
@@ -116,14 +118,14 @@ void sersendf_P(PGM_P format, ...) {
 					if (j == 4)
 						serwrite_uint32(va_arg(args, uint32_t));
 					else
-						serwrite_uint16(va_arg(args, uint16_t));
+						serwrite_uint16(va_arg(args, unsigned int));
 					j = 0;
 					break;
 				case 'd':
 					if (j == 4)
 						serwrite_int32(va_arg(args, int32_t));
 					else
-						serwrite_int16(va_arg(args, int16_t));
+						serwrite_int16(va_arg(args, int));
 					j = 0;
 					break;
 				case 'c':

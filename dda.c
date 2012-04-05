@@ -7,7 +7,10 @@
 #include	<string.h>
 #include	<stdlib.h>
 #include	<math.h>
-#include	<avr/interrupt.h>
+
+#ifndef SIMULATION
+	#include	<avr/interrupt.h>
+#endif
 
 #include	"timer.h"
 #include	"serial.h"

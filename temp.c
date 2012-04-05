@@ -7,8 +7,10 @@
 */
 
 #include	<stdlib.h>
-#include	<avr/eeprom.h>
-#include	<avr/pgmspace.h>
+#ifndef SIMULATION
+	#include	<avr/eeprom.h>
+    #include	<avr/pgmspace.h>
+#endif
 
 #include	"arduino.h"
 #include	"delay.h"
@@ -93,6 +95,8 @@ void temp_init() {
 /*			case TT_AD595:
 				break;*/
 		#endif
+
+#include "simulation.h"
 
 		#ifdef	TEMP_INTERCOM
 			case TT_INTERCOM:

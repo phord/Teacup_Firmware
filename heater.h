@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include	<stdint.h>
+#include	"simulation.h"
 #include "temp.h"
 
 #define	enable_heater()		heater_set(0, 64)
