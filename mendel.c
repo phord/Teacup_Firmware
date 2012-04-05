@@ -23,9 +23,10 @@
 			M115
 			ctrl+d \endcode
 */
-
-#include	<avr/io.h>
-#include	<avr/interrupt.h>
+#ifndef SIMULATION
+	#include	<avr/io.h>
+	#include	<avr/interrupt.h>
+#endif
 
 #include	"config.h"
 #include	"fuses.h"
@@ -46,6 +47,7 @@
 #include	"arduino.h"
 #include	"clock.h"
 #include	"intercom.h"
+#include	"simulation.h"
 
 /// initialise all I/O - set pins as input or output, turn off unused subsystems, etc
 void io_init(void) {

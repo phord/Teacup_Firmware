@@ -7,7 +7,10 @@
 #include	<string.h>
 #include	<stdlib.h>
 #include	<math.h>
-#include	<avr/interrupt.h>
+
+#ifndef SIMULATION
+	#include	<avr/interrupt.h>
+#endif
 
 #include	"dda_maths.h"
 #include	"dda_lookahead.h"

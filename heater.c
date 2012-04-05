@@ -5,8 +5,10 @@
 */
 
 #include	<stdlib.h>
-#include	<avr/eeprom.h>
+#ifndef SIMULATION
+	#include	<avr/eeprom.h>
 #include	<avr/pgmspace.h>
+#endif
 
 #include	"arduino.h"
 #include	"debug.h"
