@@ -55,8 +55,8 @@ void dda_init(void) {
 		startpoint.F = next_target.target.F = SEARCH_FEEDRATE_Z;
 
 	#ifdef ACCELERATION_RAMPING
-		move_state.n = 1;
-		move_state.c = ((uint32_t)((double)F_CPU / sqrt((double)(STEPS_PER_M_X * ACCELERATION / 1000.)))) << 8;
+    move_state.n = 0;
+    move_state.c = C0;
 	#endif
 }
 
@@ -103,8 +103,8 @@ void dda_create(DDA *dda, TARGET *target, DDA *prev_dda) {
   #ifdef LOOKAHEAD
   // Set the start and stop speeds to zero for now = full stops between
   // moves. Also fallback if lookahead calculations fail to finish in time.
-  dda->F_start = 0;
-  dda->F_end = 0;
+  dda->F_start_in_steps = 0;
+  dda->F_end_in_steps = 0;
   // Give this move an identifier.
   dda->id = idcnt++;
   #endif
@@ -427,6 +427,17 @@ void dda_start(DDA *dda) {
 		#ifdef ACCELERATION_RAMPING
 			move_state.step_no = 0;
 		#endif
+    #ifdef LOOKAHEAD
+      // Set start speed (a recalculation of move_state.c is needed to ensure continuity)
+      move_state.n = dda->F_start_in_steps;
+      if (move_state.n == 0)
+        move_state.c = C0;
+      else
+        move_state.c = ((C0 >> 8) * int_inv_sqrt(move_state.n)) >> 5;
+    #else
+      move_state.c = C0;
+      move_state.n = 0;
+    #endif
 		#ifdef ACCELERATION_TEMPORAL
 		move_state.x_time = move_state.y_time = \
 			move_state.z_time = move_state.e_time = 0UL;
@@ -581,20 +592,23 @@ void dda_step(DDA *dda) {
 		//}
 
 		recalc_speed = 0;
+    if (move_state.step_no == 0)
+      recalc_speed = 1;
 		if (move_state.step_no < dda->rampup_steps) {
-			if (move_state.n < 0) // wrong ramp direction
-				move_state.n = -((int32_t)2) - move_state.n;
+      move_state.n++;
 			recalc_speed = 1;
 		}
 		else if (move_state.step_no >= dda->rampdown_steps) {
-			if (move_state.n > 0) // wrong ramp direction
-				move_state.n = -((int32_t)2) - move_state.n;
+      if (move_state.n > 0)
+        move_state.n--;
 			recalc_speed = 1;
 		}
 		if (recalc_speed) {
-			move_state.n += 4;
 			// be careful of signedness!
-			move_state.c = (int32_t)move_state.c - ((int32_t)(move_state.c * 2) / (int32_t)move_state.n);
+      if (move_state.n == 0)
+        move_state.c = C0;
+      else
+        move_state.c = ((C0 >> 8) * int_inv_sqrt(move_state.n)) >> 5;
       //sersendf_P(PSTR("n:%ld; c:%ld; steps: %ld / %lu\n"), move_state.n,
       //           move_state.c, move_state.step_no, move_state.y_steps);
 		}
@@ -671,15 +685,15 @@ void dda_step(DDA *dda) {
   if ((move_state.x_steps == 0 && move_state.y_steps == 0 &&
        move_state.z_steps == 0 && move_state.e_steps == 0)
     #ifdef ACCELERATION_RAMPING
-      || (dda->endstop_check && move_state.n == -3)
+      || (dda->endstop_check && move_state.n == 0)
     #endif
       ) {
-		dda->live = 0;
     #ifdef LOOKAHEAD
     // If look-ahead was using this move, it could have missed our activation:
     // make sure the ids do not match.
     dda->id--;
     #endif
+    dda->live = 0;
 		#ifdef	DC_EXTRUDER
 			heater_set(DC_EXTRUDER, 0);
 		#endif
