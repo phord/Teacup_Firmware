@@ -6,6 +6,12 @@
 
 uint8_t ACSR;
 uint8_t TIMSK1;
+uint16_t    TCCR0A,
+    TCCR0B,
+    TCCR2A,
+    TCCR2B,
+    TIMSK0,
+    TIMSK2;
 
 
 /* -- debugging ------------------------------------------------------------ */

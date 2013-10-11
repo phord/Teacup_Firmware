@@ -10,14 +10,13 @@ static bool timer_initialised = false;
 
 void setupTimerInterrupt(void)
 {
-	disableTimerInterrupt();
 	sim_info("setupTimerInterrupt");
 	timer_initialised = true;
 }
 
 static void timer1_isr(int cause, siginfo_t *HowCome, void *ucontext)
 {
-	if (!sim_interrupts || !timerInterruptIsEnabled()) return;
+	if (!sim_interrupts) return;
 
 	sim_interrupts = false;
 

@@ -26,6 +26,7 @@
 #ifndef SIMULATION
 	#include	<avr/io.h>
 	#include	<avr/interrupt.h>
+    #include	"arduino.h"
 #endif
 
 #include	"config.h"
@@ -44,7 +45,6 @@
 #include	"heater.h"
 #include	"analog.h"
 #include	"pinio.h"
-#include	"arduino.h"
 #include	"clock.h"
 #include	"intercom.h"
 #include	"simulation.h"

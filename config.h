@@ -30,9 +30,11 @@
 
 	If you want to port this to a new chip, start off with arduino.h and see how you go.
 */
-#ifndef __AVR_ATmega644P__
-  #ifndef __AVR_ATmega644__
-	  #error GEN7 has a 644 or a 644P! set your cpu type in Makefile!
+#ifndef SIMULATION
+  #ifndef __AVR_ATmega644P__
+    #ifndef __AVR_ATmega644__
+	    #error GEN7 has a 644 or a 644P! set your cpu type in Makefile!
+    #endif
   #endif
 #endif
 
@@ -183,7 +185,9 @@
 	- comment out pins not in use, as this drops the corresponding code and makes operations faster
 */
 
+#ifndef SIMULATION
 #include	"arduino.h"
+#endif
 
 /** \def USE_INTERNAL_PULLUPS
 	internal pullup resistors
@@ -500,3 +504,7 @@ PWM value for 'off'
 * OCR5CL - PL5 - DIO44                                                      *
 *                                                                           *
 \***************************************************************************/
+
+#ifdef SIMULATION
+    #include "simulation.h"
+#endif

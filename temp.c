@@ -10,9 +10,9 @@
 #ifndef SIMULATION
 	#include	<avr/eeprom.h>
     #include	<avr/pgmspace.h>
+    #include	"arduino.h"
 #endif
 
-#include	"arduino.h"
 #include	"debug.h"
 #ifndef	EXTRUDER
 	#include	"sersendf.h"
