@@ -13,7 +13,6 @@
 #include	<avr/interrupt.h>
 #include	"memory_barrier.h"
 
-#include	"config.h"
 #include	"arduino.h"
 
 /// size of TX and RX buffers. MUST be a \f$2^n\f$ value
@@ -24,6 +23,7 @@
 /// ascii XON character
 #define		ASCII_XON		17
 
+#ifndef USB_SERIAL
 /// rx buffer head pointer. Points to next available space.
 volatile uint8_t rxhead = 0;
 /// rx buffer tail pointer. Points to last character in buffer
@@ -105,6 +105,8 @@ void serial_init()
 /// receive interrupt
 ///
 /// we have received a character, stuff it in the rx buffer if we can, or drop it if we can't
+// Using the pragma inside the function is incompatible with Arduinos' gcc.
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #ifdef	USART_RX_vect
 ISR(USART_RX_vect)
 #else
@@ -117,9 +119,12 @@ ISR(USART0_RX_vect)
 	if (buf_canwrite(rx))
 		buf_push(rx, UDR0);
 	else {
+    // Not reading the character makes the interrupt logic to swamp us with
+    // retries, so better read it and throw it away.
+    // #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 		uint8_t trash;
+    // #pragma GCC diagnostic pop
 
-		// not reading the character makes the interrupt logic to swamp us with retries, so better read it and throw it away
 		trash = UDR0;
 	}
 
@@ -137,6 +142,7 @@ ISR(USART0_RX_vect)
 	MEMORY_BARRIER();
 	SREG = sreg_save;
 }
+#pragma GCC diagnostic pop
 
 /// transmit buffer ready interrupt
 ///
@@ -223,6 +229,7 @@ void serial_writechar(uint8_t data)
 	// enable TX interrupt so we can send this character
 	UCSR0B |= MASK(UDRIE0);
 }
+#endif /* USB_SERIAL */
 
 /// send a whole block
 void serial_writeblock(void *data, int datalen)

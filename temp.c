@@ -13,7 +13,6 @@
     #include	"arduino.h"
 #endif
 
-#include	"delay.h"
 #include	"debug.h"
 #ifndef	EXTRUDER
 	#include	"sersendf.h"
@@ -35,10 +34,6 @@
 #include	"analog.h"
 #endif
 
-#ifdef TEMP_NONE
-// no actual sensor, just store the target temp
-#endif
-
 typedef enum {
 	PRESENT,
 	TCOPEN
@@ -54,7 +49,7 @@ typedef struct {
 
 #undef DEFINE_TEMP_SENSOR
 /// help build list of sensors from entries in config.h
-#define DEFINE_TEMP_SENSOR(name, type, pin, additional) { (type), (pin), (HEATER_ ## name), (additional) },
+#define DEFINE_TEMP_SENSOR(name, type, pin, additional) { (type), (pin ## _ADC), (HEATER_ ## name), (additional) },
 static const temp_sensor_definition_t temp_sensors[NUM_TEMP_SENSORS] =
 {
 	#include	"config.h"
@@ -105,12 +100,6 @@ void temp_init() {
 				break;
 		#endif
 
-		#ifdef  TEMP_NONE
-			case TT_NONE:
-				// nothing to do
-				break;
-		#endif
-
 			default: /* prevent compiler warning */
 				break;
 		}
@@ -148,8 +137,8 @@ void temp_sensor_tick() {
 					// enable TT_MAX6675
 					WRITE(SS, 0);
 
-					// ensure 100ns delay - a bit extra is fine
-					delay(1);
+					// No delay required, see
+					// https://github.com/triffid/Teacup_Firmware/issues/22
 
 					// read MSB
 					SPDR = 0;
@@ -189,7 +178,7 @@ void temp_sensor_tick() {
 					do {
 						uint8_t j, table_num;
 						//Read current temperature
-						temp = analog_read(temp_sensors[i].temp_pin);
+						temp = analog_read(i);
 						// for thermistors the thermistor table number is in the additional field
 						table_num = temp_sensors[i].additional;
 
@@ -248,7 +237,7 @@ void temp_sensor_tick() {
 
 				#ifdef	TEMP_AD595
 				case TT_AD595:
-					temp = analog_read(temp_sensors[i].temp_pin);
+					temp = analog_read(i);
 
 					// convert
 					// >>8 instead of >>10 because internal temp is stored as 14.2 fixed point
@@ -274,15 +263,6 @@ void temp_sensor_tick() {
 					break;
 				#endif	/* TEMP_INTERCOM */
 
-				#ifdef	TEMP_NONE
-				case TT_NONE:
-					temp_sensors_runtime[i].last_read_temp =
-					  temp_sensors_runtime[i].target_temp; // for get_temp()
-					temp_sensors_runtime[i].next_read_time = 25;
-
-					break;
-				#endif	/* TEMP_NONE */
-
 				#ifdef	TEMP_DUMMY
 				case TT_DUMMY:
 					temp = temp_sensors_runtime[i].last_read_temp;
@@ -300,24 +280,47 @@ void temp_sensor_tick() {
 				default: /* prevent compiler warning */
 					break;
 			}
-			temp_sensors_runtime[i].last_read_temp = temp;
+			/* Exponentially Weighted Moving Average alpha constant for smoothing
+			   noisy sensors. Instrument Engineer's Handbook, 4th ed, Vol 2 p126
+			   says values of 0.05 to 0.1 for TEMP_EWMA are typical. */
+			#ifndef TEMP_EWMA
+				#define TEMP_EWMA 1.0
+			#endif
+			#define EWMA_SCALE  1024L
+			#define EWMA_ALPHA  ((long) (TEMP_EWMA * EWMA_SCALE))
+			temp_sensors_runtime[i].last_read_temp = (uint16_t) ((EWMA_ALPHA * temp +
+			  (EWMA_SCALE-EWMA_ALPHA) * temp_sensors_runtime[i].last_read_temp
+			                                         ) / EWMA_SCALE);
 		}
 		if (labs((int16_t)(temp_sensors_runtime[i].last_read_temp - temp_sensors_runtime[i].target_temp)) < (TEMP_HYSTERESIS*4)) {
-			if (temp_sensors_runtime[i].temp_residency < (TEMP_RESIDENCY_TIME*100))
+			if (temp_sensors_runtime[i].temp_residency < (TEMP_RESIDENCY_TIME*120))
 				temp_sensors_runtime[i].temp_residency++;
 		}
 		else {
-			temp_sensors_runtime[i].temp_residency = 0;
+			// Deal with flakey sensors which occasionally report a wrong value
+			// by setting residency back, but not entirely to zero.
+			if (temp_sensors_runtime[i].temp_residency > 10)
+				temp_sensors_runtime[i].temp_residency -= 10;
+			else
+				temp_sensors_runtime[i].temp_residency = 0;
 		}
 
 		if (temp_sensors[i].heater < NUM_HEATERS) {
 			heater_tick(temp_sensors[i].heater, temp_sensors[i].temp_type, temp_sensors_runtime[i].last_read_temp, temp_sensors_runtime[i].target_temp);
 		}
+
+    if (DEBUG_PID && (debug_flags & DEBUG_PID))
+      sersendf_P(PSTR("DU temp: {%d %d %d.%d}"), i,
+                 temp_sensors_runtime[i].last_read_temp,
+                 temp_sensors_runtime[i].last_read_temp / 4,
+                 (temp_sensors_runtime[i].last_read_temp & 0x03) * 25);
 	}
+  if (DEBUG_PID && (debug_flags & DEBUG_PID))
+    sersendf_P(PSTR("\n"));
 }
 
 /// report whether all temp sensors are reading their target temperatures
-/// used for M109 and friends
+/// used for M116 and friends
 uint8_t	temp_achieved() {
 	temp_sensor_t i;
 	uint8_t all_ok = 255;
@@ -356,40 +359,32 @@ uint16_t temp_get(temp_sensor_t index) {
 	return temp_sensors_runtime[index].last_read_temp;
 }
 
-uint8_t temp_all_zero() {
-	uint8_t i;
-	for (i = 0; i < NUM_TEMP_SENSORS; i++) {
-		if (temp_sensors[i].heater < NUM_HEATERS) {
-			if (temp_sensors_runtime[i].target_temp)
-				return 0;
-		}
-	}
-	return 255;
-}
-
 // extruder doesn't have sersendf_P
 #ifndef	EXTRUDER
+static void single_temp_print(temp_sensor_t index) {
+	uint8_t c = (temp_sensors_runtime[index].last_read_temp & 3) * 25;
+	sersendf_P(PSTR("%u.%u"), temp_sensors_runtime[index].last_read_temp >> 2, c);
+}
+
 /// send temperatures to host
 /// \param index sensor value to send
 void temp_print(temp_sensor_t index) {
-	uint8_t c = 0;
 
-	if (index >= NUM_TEMP_SENSORS)
-		return;
-
-	c = (temp_sensors_runtime[index].last_read_temp & 3) * 25;
-
-	#if REPRAP_HOST_COMPATIBILITY >= 20110509
-		sersendf_P(PSTR("T:%u.%u"), temp_sensors_runtime[index].last_read_temp >> 2, c);
-	#else
-		sersendf_P(PSTR("\nT:%u.%u"), temp_sensors_runtime[index].last_read_temp >> 2, c);
-	#endif
-	#ifdef HEATER_BED
-		uint8_t b = 0;
-		b = (temp_sensors_runtime[HEATER_BED].last_read_temp & 3) * 25;
-
-		sersendf_P(PSTR(" B:%u.%u"), temp_sensors_runtime[HEATER_BED].last_read_temp >> 2 , b);
-	#endif
-
+	if (index == TEMP_SENSOR_none) { // standard behaviour
+		#ifdef HEATER_EXTRUDER
+			sersendf_P(PSTR("T:"));
+			single_temp_print(HEATER_EXTRUDER);
+		#endif
+		#ifdef HEATER_BED
+			sersendf_P(PSTR(" B:"));
+			single_temp_print(HEATER_BED);
+		#endif
+	}
+	else {
+		if (index >= NUM_TEMP_SENSORS)
+			return;
+		sersendf_P(PSTR("T[%su]:"), index);
+		single_temp_print(index);
+	}
 }
 #endif

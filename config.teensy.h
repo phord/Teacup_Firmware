@@ -1,9 +1,8 @@
 /* Notice to developers: this file is intentionally included twice. */
+/* attempt by drf@vims.edu 2012-01-09 to fit TeaCup into a $16 teensy from htpp://www.pjrc.com/teensy/ */
 
 /** \file
-	\brief Sample Configuration
-
-	\note this sample uses AIO0 for both X_STEP and thermistor, and is intended to be an example only!
+	\brief Teensy 2.0 configuration.
 */
 
 /*
@@ -30,28 +29,22 @@
 
 	If you want to port this to a new chip, start off with arduino.h and see how you go.
 */
-#ifndef __AVR_ATmega644P__
-  #ifndef __AVR_ATmega644__
-	  #error GEN7 has a 644 or a 644P! set your cpu type in Makefile!
-  #endif
+#if ! defined (__AVR_ATmega32U4__)
+	#error Teensy has a 32U4! set your cpu type in Makefile!
 #endif
 
 /** \def F_CPU
 	CPU clock rate
 */
 #ifndef	F_CPU
-	#define	F_CPU	20000000UL
+	#define	F_CPU	16000000UL
 #endif
 
-/** \def HOST
+/** \def MOTHERBOARD
 	This is the motherboard, as opposed to the extruder. See extruder/ directory for GEN3 extruder firmware
 */
-#define	HOST
+#define	MOTHERBOARD
 
-/*
-	Values reflecting the gearing of your machine.
-		All numbers are fixed point integers, so no more than 3 digits to the right of the decimal point, please :-)
-*/
 
 /** \def STEPS_PER_M
 	steps per meter ( = steps per mm * 1000 )
@@ -67,14 +60,29 @@
 	half-stepping doubles the number, quarter stepping requires * 4, etc.
 
 	valid range = 20 to 4'0960'000 (0.02 to 40960 steps/mm)
+
+	all numbers are integers, so no decimal point, please :-)
+
+T5=5mm, T2.5=2.5mm, MXL=0.08=2.032mm XL=1/5"=5.08mm
+
+T2.5mm belt w small, 10 (of 10-15 tooth pulley:
+MXL 2.032 mm/tooth, 29
+          (steps/rev) / (tooth/rev) / (mm/tooth)  * (mm/m)
+ X       200*4      / 29          / 2.032         * 1000  = 13575.89
+ Y       200*4      / 29          / 2.032         * 1000  = 13575.89
+ Z       200*2       / 1           / 1           * 1000  = 400000  # half-step for noise
+ Extrude through a Wades' 10:43 with a M8 hobbed bolt:
+         steps/revM  * revM/revO    / (dia * circ/rev) *  mm/m
+ E       200*1*4     * 43/10        / (8   *  3.14159) *  1000 = 136873.4
+         mm/m        / (mm/rev ext)   (rev mot/rev ext)  step/revmot
+ E       1000        / (8 * 3.14159)  * 43/10           * 200 * 4 = 136873.4
 */
-#define	STEPS_PER_M_X					40000
-#define	STEPS_PER_M_Y					40000
-#define	STEPS_PER_M_Z					320000
+#define	STEPS_PER_M_X				        13576
+#define	STEPS_PER_M_Y					13576
+#define	STEPS_PER_M_Z				        400000
 
 /// http://blog.arcol.hu/?p=157 may help with this one
-#define	STEPS_PER_M_E					96271
-
+#define	STEPS_PER_M_E				        160423
 
 /*
 	Values depending on the capabilities of your stepper motors and other mechanics.
@@ -84,10 +92,10 @@
 */
 
 /// used for G0 rapid moves and as a cap for all other feedrates
-#define	MAXIMUM_FEEDRATE_X			2000
-#define	MAXIMUM_FEEDRATE_Y			2000
-#define	MAXIMUM_FEEDRATE_Z			200
-#define	MAXIMUM_FEEDRATE_E			2000
+#define	MAXIMUM_FEEDRATE_X		6881
+#define	MAXIMUM_FEEDRATE_Y		6881
+#define	MAXIMUM_FEEDRATE_Z		233
+#define	MAXIMUM_FEEDRATE_E		680
 
 /// used when searching endstops and as default feedrate
 #define	SEARCH_FEEDRATE_X			50
@@ -102,7 +110,7 @@
 // #define	SLOW_HOMING
 
 /// this is how many steps to suck back the filament by when we stop. set to zero to disable
-#define	E_STARTSTOP_STEPS			289
+#define	E_STARTSTOP_STEPS			20
 
 /**
 	Soft axis limits, in mm.
@@ -120,6 +128,8 @@
 
 /**	\def E_ABSOLUTE
 	Some G-Code creators produce relative length commands for the extruder, others absolute ones. G-Code using absolute lengths can be recognized when there are G92 E0 commands from time to time. If you have G92 E0 in your G-Code, define this flag.
+
+	This is the startup default and can be changed with M82/M83 while running.
 */
 // #define E_ABSOLUTE
 
@@ -129,9 +139,15 @@
 *                                                                           *
 * 2. ACCELERATION                                                           *
 *                                                                           *
-* IMPORTANT: choose only one! These algorithms choose when to step, trying  *
-*            to use more than one will have undefined and probably          *
-*            disastrous results!                                            *
+* Choose optionally one of ACCELERATION_REPRAP, ACCELERATION_RAMPING or     *
+* ACCELERATION_TEMPORAL. With none of them defined, movements are done      *
+* without acceleration. Recommended is ACCELERATION_RAMPING.                *
+*                                                                           *
+* LOOKAHEAD is experimental for now and works in conjunction with           *
+* ACCELERATION_RAMPING, only. That's why it's off by default.               *
+*                                                                           *
+* Also don't forget to adjust ACCELERATION to the capabilities of your      *
+* printer. The default is very moderate to be on the safe side.             *
 *                                                                           *
 \***************************************************************************/
 
@@ -167,6 +183,31 @@
 */
 // #define ACCELERATION_TEMPORAL
 
+/** \def LOOKAHEAD
+  Define this to enable look-ahead during *ramping* acceleration to smoothly
+  transition between moves instead of performing a dead stop every move.
+  Enabling look-ahead requires about 3600 bytes of flash memory.
+*/
+// #define LOOKAHEAD
+
+/** \def LOOKAHEAD_MAX_JERK_XY
+  When performing look-ahead, we need to decide what an acceptable jerk to the
+  mechanics is when we (instantly) change direction.
+
+  Units: micrometers
+  Sane values: 5 to 200
+*/
+#define LOOKAHEAD_MAX_JERK_XY 10
+
+/** \def LOOKAHEAD_MAX_JERK_E
+  When joining moves with different extrusion rates, define the maximum jerk
+  for the extruder.
+
+  Units: micrometers
+  Sane values: 5 to 200
+*/
+#define LOOKAHEAD_MAX_JERK_E 10
+
 
 
 /***************************************************************************\
@@ -179,6 +220,36 @@
 	Machine Pin Definitions
 	- make sure to avoid duplicate usage of a pin
 	- comment out pins not in use, as this drops the corresponding code and makes operations faster
+
+Teensy http://www.pjrc.com/teensy ATMega64U4 carrier:
+
+DaveX plan for Wallace:
+                               USB
+           GND       GND |-----#####-----| +5V              ATX +5SB
+     ATX PS_ON         0 |b0   #####   F0| 21 A0            Extruder TC
+         X_MIN         1 |b1           f1| 20 A1            Bed TC
+         Y_MIN         2 |b2  /=e6     f4| 19 A2            Stepper -ENABLE (or -SLEEP)
+         Z_MIN         3 |b3 *      *  f5| 18 A3            STEP X
+                 PWM   4 |b7  aref=/   f6| 17 A4            DIR X
+                 PWM   5 |d0           f7| 16 A5            STEP Y
+                       6 |d1           b6| 15 A6  PWM       DIR Y
+                       7 |d2   V G R   b5| 14 A7            STEP Z
+           Fan         8 |d3 d c n S d b4| 13 A8            DIR Z
+      Bed Heat   PWM   9 |d6 5 c d T 4 d7| 12 A9  PWM       STEP E
+ Extruder Heat   PWM  10 |d7 * * * * * d6| 11 A10 (led)     DIR E
+                         --------------------
+                          23 ^      \ \----22 A11
+                                      \------ RST
+
+      Interior E6: 24, AIN0, INT6
+      Interior Aref : Aref
+      End d5 : 23
+      End d4 : 22, A1
+
+PWM might be possible on pins PB5/DIO14/AIO7 and PD6/DIO11/AIO10 pins but they
+are complementary to the PWMs on the successive pins, if you reserve
+timer/counter1 for Teacup. Avoid trying to use these two inverse PWMs, and try
+to use the other 6 PWMs instead.
 */
 
 #include	"arduino.h"
@@ -195,9 +266,18 @@
 	or adjust your electronics to suit this
 */
 
-#define	X_STEP_PIN						DIO19
-#define	X_DIR_PIN							DIO18
-#define	X_MIN_PIN							DIO7
+/* teensy arduino assignments are 0-23 for digital, overlapping with A11-0 down from A11=D22, A0=D21...A10=D11 */
+
+/* starting down the left side for digital, and later down the right for analog */
+/* General layout: ccw from upper left: stops, heaters,  E,Z,Y,X,  temp sensors */
+
+//#define	PS_ON_PIN							DIO0
+#define	STEPPER_ENABLE_PIN		DIO19
+#define	STEPPER_INVERT_ENABLE
+
+#define	X_STEP_PIN						DIO18
+#define	X_DIR_PIN							DIO17
+#define	X_MIN_PIN							DIO1
 //#define	X_MAX_PIN							xxxx
 //#define	X_ENABLE_PIN					xxxx
 //#define	X_INVERT_DIR
@@ -205,9 +285,9 @@
 //#define	X_INVERT_MAX
 //#define	X_INVERT_ENABLE
 
-#define	Y_STEP_PIN						DIO23
-#define	Y_DIR_PIN							DIO22
-#define	Y_MIN_PIN							DIO5
+#define	Y_STEP_PIN						DIO16
+#define	Y_DIR_PIN							DIO15
+#define	Y_MIN_PIN							DIO3
 //#define	Y_MAX_PIN							xxxx
 //#define	Y_ENABLE_PIN					xxxx
 //#define	Y_INVERT_DIR
@@ -215,26 +295,26 @@
 //#define	Y_INVERT_MAX
 //#define	Y_INVERT_ENABLE
 
-#define	Z_STEP_PIN						DIO26
-#define	Z_DIR_PIN							DIO25
-#define	Z_MIN_PIN							DIO1
+#define	Z_STEP_PIN						DIO14
+#define	Z_DIR_PIN							DIO13
+#define	Z_MIN_PIN							DIO2
 //#define	Z_MAX_PIN							xxxx
-//#define	Z_ENABLE_PIN					xxxx
+//#define	Z_ENABLE_PIN					DIO17
 //#define	Z_INVERT_DIR
 //#define	Z_INVERT_MIN
 //#define	Z_INVERT_MAX
 //#define	Z_INVERT_ENABLE
 
-#define	E_STEP_PIN						DIO28
-#define	E_DIR_PIN							DIO27
-//#define E_ENABLE_PIN
-//#define	E_INVERT_DIR
+#define	E_STEP_PIN						DIO12
+#define	E_DIR_PIN							DIO11
+//#define E_ENABLE_PIN					xxxx
+#define	E_INVERT_DIR
 //#define	E_INVERT_ENABLE
 
-#define	PS_ON_PIN							DIO15
-#define STEPPER_ENABLE_PIN		DIO24
-#define	STEPPER_INVERT_ENABLE
 
+//#define	PS_ON_PIN							xxxx
+//#define	SD_CARD_DETECT		 		DIO2
+//#define	SD_WRITE_PROTECT			DIO3
 
 
 /***************************************************************************\
@@ -247,13 +327,27 @@
 	TEMP_HYSTERESIS: actual temperature must be target +/- hysteresis before target temperature can be achieved.
 	Unit is degree Celsius.
 */
-#define	TEMP_HYSTERESIS			20
-/**
-	TEMP_RESIDENCY_TIME: actual temperature must be close to target for this long before target is achieved
+#define	TEMP_HYSTERESIS				5
 
-	temperature is "achieved" for purposes of M109 and friends when actual temperature is within [hysteresis] of target for [residency] seconds
+/**
+	TEMP_RESIDENCY_TIME: actual temperature must be close to target (within
+	set temperature +- TEMP_HYSTERESIS) for this long before target is achieved
+	(and a M116 succeeds). Unit is seconds.
 */
 #define	TEMP_RESIDENCY_TIME		60
+
+/**
+  TEMP_EWMA: Smooth noisy temperature sensors. Good hardware shouldn't be
+  noisy. Set to 1.0 for unfiltered data (and a 140 bytes smaller binary).
+
+  Instrument Engineer's Handbook, 4th ed, Vol 2 p126 says values of
+  0.05 to 0.1 are typical. Smaller is smoother but slower adjusting, larger is
+  quicker but rougher. If you need to use this, set the PID parameter to zero
+  (M132 S0) to make the PID loop insensitive to noise.
+
+  Valid range: 0.001 to 1.0
+*/
+#define TEMP_EWMA             0.1
 
 /// which temperature sensors are you using? List every type of sensor you use here once, to enable the appropriate code. Intercom is the gen3-style separate extruder board.
 // #define	TEMP_MAX6675
@@ -261,16 +355,22 @@
 // #define	TEMP_AD595
 // #define	TEMP_PT100
 // #define	TEMP_INTERCOM
-// #define	TEMP_NONE
 
 /***************************************************************************\
 *                                                                           *
-* Define your temperature sensors here                                      *
+* Define your temperature sensors here. One line for each sensor, only      *
+* limited by the number of available ATmega pins.                           *
 *                                                                           *
-* for GEN3 set temp_type to TT_INTERCOM and temp_pin to 0                   *
+* Types are same as TEMP_ list above - TT_MAX6675, TT_THERMISTOR, TT_AD595, *
+*   TT_PT100, TT_INTERCOM. See list in temp.c.                              *
 *                                                                           *
-* Types are same as TEMP_ list above- TT_MAX6675, TT_THERMISTOR, TT_AD595,  *
-*   TT_PT100, TT_INTERCOM, TT_NONE. See list in temp.c.                     *
+* The "additional" field is used for TT_THERMISTOR only. It defines the     *
+* name of the table(s) in ThermistorTable.h to use. Typically, this is      *
+* THERMISTOR_EXTRUDER for the first or only table, or THERMISTOR_BED for    *
+* the second table. See also early in ThermistorTable.{single|double}.h.    *
+*                                                                           *
+* For a GEN3 set temp_type to TT_INTERCOM and temp_pin to AIO0. The pin     *
+* won't be used in this case.                                               *
 *                                                                           *
 \***************************************************************************/
 
@@ -278,17 +378,12 @@
 	#define DEFINE_TEMP_SENSOR(...)
 #endif
 
-//                 name       type          pin		additional
-//DEFINE_TEMP_SENSOR(extruder,	TT_THERMISTOR,		0,	THERMISTOR_EXTRUDER)
-// DEFINE_TEMP_SENSOR(bed,				TT_THERMISTOR,	1,	THERMISTOR_EXTRUDER)
+//                 name       type            pin        additional
+DEFINE_TEMP_SENSOR(extruder,  TT_THERMISTOR,  AIO0,      THERMISTOR_EXTRUDER)
+DEFINE_TEMP_SENSOR(bed,       TT_THERMISTOR,  AIO1,      THERMISTOR_EXTRUDER)
 // "noheater" is a special name for a sensor which doesn't have a heater.
 // Use "M105 P#" to read it, where # is a zero-based index into this list.
-// DEFINE_TEMP_SENSOR(noheater,				TT_THERMISTOR,	1,	0)
-
-// to get both thermistors working make sure to use an appropriate 'ThermistorTable.h' file! 
-// See 'ThermistorTable.gen7.h' for an example
-DEFINE_TEMP_SENSOR(extruder, TT_THERMISTOR, PINA1, THERMISTOR_EXTRUDER)
-DEFINE_TEMP_SENSOR(bed, TT_THERMISTOR, PINA2, THERMISTOR_BED)
+// DEFINE_TEMP_SENSOR(noheater,  TT_THERMISTOR,  1,            0)
 
 
 
@@ -306,24 +401,31 @@ DEFINE_TEMP_SENSOR(bed, TT_THERMISTOR, PINA2, THERMISTOR_BED)
 
 /***************************************************************************\
 *                                                                           *
-* Define your heaters here                                                  *
-*                                                                           *
-* If your heater isn't on a PWM-able pin, set heater_pwm to zero and we'll  *
-*   use bang-bang output. Note that PID will still be used                  *
-*                                                                           *
-* See Appendix 8 at the end of this file for PWMable pin mappings           *
-*                                                                           *
-* If a heater isn't attached to a temperature sensor above, it can still be *
-*   controlled by host but otherwise is ignored by firmware                 *
+* Define your heaters and devices here.                                     *
 *                                                                           *
 * To attach a heater to a temp sensor above, simply use exactly the same    *
-*   name - copy+paste is your friend                                        *
+* name - copy+paste is your friend. Some common names are 'extruder',       *
+* 'bed', 'fan', 'motor', ... names with special meaning can be found        *
+* in gcode_process.c. Currently, these are:                                 *
+*   HEATER_extruder   (M104)                                                *
+*   HEATER_bed        (M140)                                                *
+*   HEATER_fan        (M106)                                                *
 *                                                                           *
-* Some common names are 'extruder', 'bed', 'fan', 'motor'                   *
+* Devices don't neccessarily have a temperature sensor, e.g. fans or        *
+* milling spindles. Operate such devices by setting their power (M106),     *
+* instead of setting their temperature (M104).                              *
 *                                                                           *
-* A milling spindle can also be defined as a heater. Attach it to a         *
-* temperature sensor of TT_NONE, then you can control the spindle's rpm     *
-* via temperature commands. M104 S1..255 for spindle on, M104 S0 for off.   *
+* Also note, the index of a heater (M106 P#) can differ from the index of   *
+* its attached temperature sensor (M104 P#) in case sensor-less devices     *
+* are defined or the order of the definitions differs. The first defined    *
+* device has the index 0 (zero).                                            *
+*                                                                           *
+* Set 'pwm' to ...                                                          *
+*  1  for using PWM on a PWM-able pin and on/off on other pins.             *
+*  0  for using on/off on a PWM-able pin, too.                              *
+* Using PWM usually gives smoother temperature control but can conflict     *
+* with slow switches, like solid state relays. PWM frequency can be         *
+* influenced globally with FAST_PWM, see below.                             *
 *                                                                           *
 \***************************************************************************/
 
@@ -331,9 +433,12 @@ DEFINE_TEMP_SENSOR(bed, TT_THERMISTOR, PINA2, THERMISTOR_BED)
 	#define DEFINE_HEATER(...)
 #endif
 
-//               name      port   pin    pwm
-DEFINE_HEATER(extruder,	PB4)
-DEFINE_HEATER(bed, PB3)
+//            name      port   pwm
+DEFINE_HEATER(extruder, DIO10, 1)
+DEFINE_HEATER(bed,      DIO9,  1)
+DEFINE_HEATER(fan,      DIO8,  0)
+// DEFINE_HEATER(chamber,  PIND7, 1)
+// DEFINE_HEATER(motor,    PIND6, 1)
 
 /// and now because the c preprocessor isn't as smart as it could be,
 /// uncomment the ones you've listed above and comment the rest.
@@ -343,6 +448,9 @@ DEFINE_HEATER(bed, PB3)
 
 #define	HEATER_EXTRUDER HEATER_extruder
 #define HEATER_BED HEATER_bed
+#define HEATER_FAN HEATER_fan
+// #define HEATER_CHAMBER HEATER_chamber
+// #define HEATER_MOTOR HEATER_motor
 
 
 
@@ -352,21 +460,18 @@ DEFINE_HEATER(bed, PB3)
 *                                                                           *
 \***************************************************************************/
 
-/** \def REPRAP_HOST_COMPATIBILITY
-	RepRap Host changes it's communications protocol from time to time and intentionally avoids backwards compatibility. Set this to the date the source code of your Host was fetched from RepRap's repository, which is likely also the build date.
-	See the discussion on the reprap-dev mailing list from 11 Oct. 2010.
-
-	Undefine it for best human readability, set it to an old date for compatibility with hosts before August 2010
+/** \def BAUD
+  Baud rate for the serial RS232 protocol connection to the host. Usually
+  115200, other common values are 19200, 38400 or 57600. Ignored when USB_SERIAL
+  is defined.
 */
-// #define REPRAP_HOST_COMPATIBILITY 19750101
-// #define REPRAP_HOST_COMPATIBILITY 20100806
-// #define REPRAP_HOST_COMPATIBILITY 20110509
-// #define REPRAP_HOST_COMPATIBILITY <date of next RepRap Host compatibility break>
+#define BAUD 115200
 
-/**
-	Baud rate for the connection to the host. Usually 115200, other common values are 19200, 38400 or 57600.
+/** \def USB_SERIAL
+  Define this for using USB instead of the serial RS232 protocol. Works on
+  USB-equipped ATmegas, like the ATmega32U4, only.
 */
-#define	BAUD	115200
+#define USB_SERIAL
 
 /** \def XONXOFF
 	Xon/Xoff flow control.
@@ -383,6 +488,15 @@ DEFINE_HEATER(bed, PB3)
 *                                                                           *
 \***************************************************************************/
 
+/** \def EECONFIG
+  EECONFIG: Enable EEPROM configuration storage.
+
+  Enabled by default. Commenting this out makes the binary several hundred
+  bytes smaller, so you might want to disable EEPROM storage on small MCUs,
+  like the ATmega168.
+*/
+#define EECONFIG
+
 /** \def DEBUG
 	DEBUG
 		enables /heaps/ of extra output, and some extra M-codes.
@@ -396,17 +510,17 @@ BANG_BANG
 drops PID loop from heater control, reduces code size significantly (1300 bytes!)
 may allow DEBUG on '168
 */
-// #define	BANG_BANG
+#define	BANG_BANG
 /** \def BANG_BANG_ON
 BANG_BANG_ON
 PWM value for 'on'
 */
-// #define	BANG_BANG_ON	200
+#define	BANG_BANG_ON	200
 /** \def BANG_BANG_OFF
 BANG_BANG_OFF
 PWM value for 'off'
 */
-// #define	BANG_BANG_OFF	45
+#define	BANG_BANG_OFF	45
 
 /**
 	move buffer size, in number of moves
@@ -447,9 +561,15 @@ PWM value for 'off'
 #define	TH_COUNT					8
 
 /** \def FAST_PWM
-	Teacup offers two PWM frequencies, 76(61) Hz and 78000(62500) Hz on a 20(16) MHz electronics. The faster one is the default, as it's what most other firmwares do. It can make the heater MOSFETs pretty hot, though.
+	Teacup offers two PWM frequencies, 76(61) Hz and 78000(62500) Hz on a
+	20(16) MHz electronics. The slower one is the default, as it's the safer
+	choice. Drawback is, in a quiet environment you might notice the heaters
+	and your power supply humming.
 
-	Comment this option out if your MOSFETs overheat. Drawback is, in a quiet environment you might notice the heaters and your power supply humming, then.
+	Uncomment this option if you want to get rid of this humming or want
+	faster PWM for other reasons.
+
+	See also: http://reprap.org/wiki/Gen7_Research#MOSFET_heat_and_PWM
 */
 // #define	FAST_PWM
 
@@ -502,5 +622,16 @@ PWM value for 'off'
 * OCR5AL - PL3 - DIO46                                                      *
 * OCR5BL - PL4 - DIO45                                                      *
 * OCR5CL - PL5 - DIO44                                                      *
+*                                                                           *
+* For the atmega32U, timer pin/mappings are as follows                      *
+*                                                                           *
+* OCR0A - PB7 - DIO4                                                        *
+* OCR0B - PD0 - DIO5                                                        *
+* OCR3A - PC6 - DIO9                                                        *
+* OCR4A - PC7 - DIO10                                                       *
+*~OCRAD - PD6 - DIO11 - AIO10    *** inverse of OCR4D (avoid it) ***        *
+* OCR4D - PD7 - DIO12 - AIO9                                                *
+*~OCRAB - PB5 - DIO14 - AIO7     *** inverse of OCR4B (avoid it) ***        *
+* OCR4B - PB6 - DIO15 - AIO6                                                *
 *                                                                           *
 \***************************************************************************/

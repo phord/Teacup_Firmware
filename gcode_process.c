@@ -43,9 +43,7 @@ uint8_t next_tool;
 #if E_STARTSTOP_STEPS > 0
 /// move E by a certain amount at a certain speed
 static void SpecialMoveE(int32_t e, uint32_t f) {
-	TARGET t = startpoint;
-	t.E += e;
-	t.F = f;
+	TARGET t = { 0L, 0L, 0L, e, f, 1 };
 	enqueue(&t);
 }
 #endif /* E_STARTSTOP_STEPS > 0 */
@@ -64,18 +62,18 @@ void process_gcode_command() {
 	uint32_t	backup_f;
 
 	// convert relative to absolute
-	if (next_target.option_relative) {
+	if (next_target.option_all_relative) {
 		next_target.target.X += startpoint.X;
 		next_target.target.Y += startpoint.Y;
 		next_target.target.Z += startpoint.Z;
-        if ( config.e_absolute )
-			next_target.target.E += startpoint.E;
 	}
-	// E ALWAYS relative, otherwise we overflow our registers after only a few layers
-	// 	next_target.target.E += startpoint.E;
-	// easier way to do this
-	// 	startpoint.E = 0;
-	// moved to dda.c, end of dda_create() and dda_queue.c, next_move()
+
+	// E relative movement.
+	// Matches Sprinter's behaviour as of March 2012.
+	if (next_target.option_all_relative || next_target.option_e_relative)
+		next_target.target.e_relative = 1;
+	else
+		next_target.target.e_relative = 0;
 
 	// implement axis limits
 	#ifdef	X_MIN
@@ -115,16 +113,6 @@ void process_gcode_command() {
 
 	    next_tool = next_target.T;
 	}
-
-	// if we didn't see an axis word, set it to startpoint. this fixes incorrect moves after homing
-	if (next_target.seen_X == 0)
-		next_target.target.X = startpoint.X;
-	if (next_target.seen_Y == 0)
-		next_target.target.Y = startpoint.Y;
-	if (next_target.seen_Z == 0)
-		next_target.target.Z = startpoint.Z;
-	if (next_target.seen_E == 0)
-		next_target.target.E = startpoint.E;
 
 	if (next_target.seen_G) {
 		uint8_t axisSelected = 0;
@@ -167,11 +155,11 @@ void process_gcode_command() {
 				//?
 				queue_wait();
 				// delay
-				for (;next_target.P > 0;next_target.P--) {
-					ifclock(clock_flag_10ms) {
-						clock_10ms();
+				if (next_target.seen_P) {
+					for (;next_target.P > 0;next_target.P--) {
+						clock();
+						delay_ms(1);
 					}
-					delay_ms(1);
 				}
 				break;
 
@@ -254,9 +242,17 @@ void process_gcode_command() {
 				//?
 				//? Example: G90
 				//?
-				//? All coordinates from now on are absolute relative to the origin of the machine.  (This is the RepRap default.)
+				//? All coordinates from now on are absolute relative to the origin
+				//? of the machine. This is the RepRap default.
 				//?
-				next_target.option_relative = 0;
+				//? If you ever want to switch back and forth between relative and
+				//? absolute movement keep in mind, X, Y and Z follow the machine's
+				//? coordinate system while E doesn't change it's position in the
+				//? coordinate system on relative movements.
+				//?
+
+				// No wait_queue() needed.
+				next_target.option_all_relative = 0;
 				break;
 
 			case 91:
@@ -266,7 +262,9 @@ void process_gcode_command() {
 				//?
 				//? All coordinates from now on are relative to the last position.
 				//?
-				next_target.option_relative = 1;
+
+				// No wait_queue() needed.
+				next_target.option_all_relative = 1;
 				break;
 
 			case 92:
@@ -292,15 +290,15 @@ void process_gcode_command() {
 					axisSelected = 1;
 				}
 				if (next_target.seen_E) {
-                    if ( config.e_absolute )
-						startpoint.E = next_target.target.E;
+					startpoint.E = next_target.target.E;
 					axisSelected = 1;
 				}
 
 				if (axisSelected == 0) {
 					startpoint.X = next_target.target.X =
 					startpoint.Y = next_target.target.Y =
-					startpoint.Z = next_target.target.Z = 0;
+					startpoint.Z = next_target.target.Z =
+					startpoint.E = next_target.target.E = 0;
 				}
 
 				dda_new_startpoint();
@@ -338,10 +336,6 @@ void process_gcode_command() {
 				// newline is sent from gcode_parse after we return
 				return;
 		}
-		#ifdef	DEBUG
-			if (DEBUG_POSITION && (debug_flags & DEBUG_POSITION))
-				print_queue();
-		#endif
 	}
 	else if (next_target.seen_M) {
 		uint8_t i;
@@ -357,6 +351,7 @@ void process_gcode_command() {
 				//?
 
 			case 2:
+      case 84: // For compatibility with slic3rs default end G-code.
 				//? --- M2: program end ---
 				//?
 				//? Example: M2
@@ -393,23 +388,31 @@ void process_gcode_command() {
 				tool = next_tool;
 				break;
 
-			// M82- use absolute E coordinates
 			case 82:
-				config.e_absolute = 1;
-                break;
-			// M83- use relative E coordinates
-			case 83:
-				config.e_absolute = 0;
-                break;
+				//? --- M82 - Set E codes absolute ---
+				//?
+				//? This is the default and overrides G90/G91.
+				//? M82/M83 is not documented in the RepRap wiki, behaviour
+				//? was taken from Sprinter as of March 2012.
+				//?
+				//? While E does relative movements, it doesn't change its
+				//? position in the coordinate system. See also comment on G90.
+				//?
 
-			// M84- stop idle hold
-			case 84:
-				stepper_disable();
-				x_disable();
-				y_disable();
-				z_disable();
-				e_disable();
+				// No wait_queue() needed.
+				next_target.option_e_relative = 0;
 				break;
+
+			case 83:
+				//? --- M83 - Set E codes relative ---
+				//?
+				//? Counterpart to M82.
+				//?
+
+				// No wait_queue() needed.
+				next_target.option_e_relative = 1;
+				break;
+
 			// M3/M101- extruder on
 			case 3:
 			case 101:
@@ -458,86 +461,71 @@ void process_gcode_command() {
 				//?
 				//? Example: M104 S190
 				//?
-				//? Set the temperature of the current extruder to 190<sup>o</sup>C and return control to the host immediately (''i.e.'' before that temperature has been reached by the extruder).  See also M109.
-				//? Teacup supports an optional P parameter as a sensor index to address (eg M104 P1 S100 will set the bed temperature rather than the extruder temperature).
-				//?
+        //? Set the temperature of the current extruder to 190<sup>o</sup>C
+        //? and return control to the host immediately (''i.e.'' before that
+        //? temperature has been reached by the extruder). For waiting, see M116.
+        //?
+        //? Teacup supports an optional P parameter as a zero-based temperature
+        //? sensor index to address (e.g. M104 P1 S100 will set the temperature
+        //? of the heater connected to the second temperature sensor rather
+        //? than the extruder temperature).
+        //?
+				if ( ! next_target.seen_S)
+					break;
+        #ifdef HEATER_EXTRUDER
+          if ( ! next_target.seen_P)
+            next_target.P = HEATER_EXTRUDER;
+        // else use the first available device
+        #endif
 				temp_set(next_target.P, next_target.S);
-				if (next_target.S)
-					power_on();
 				break;
 
 			case 105:
-				//? --- M105: Get Extruder Temperature ---
+        //? --- M105: Get Temperature(s) ---
 				//?
 				//? Example: M105
 				//?
-				//? Request the temperature of the current extruder and the build base in degrees Celsius.  The temperatures are returned to the host computer.  For example, the line sent to the host in response to this command looks like
+        //? Request the temperature of the current extruder and the build base
+        //? in degrees Celsius. For example, the line sent to the host in
+        //? response to this command looks like
 				//?
 				//? <tt>ok T:201 B:117</tt>
 				//?
-				//? Teacup supports an optional P parameter as a sensor index to address.
+        //? Teacup supports an optional P parameter as a zero-based temperature
+        //? sensor index to address.
 				//?
 				#ifdef ENFORCE_ORDER
 					queue_wait();
 				#endif
+				if ( ! next_target.seen_P)
+					next_target.P = TEMP_SENSOR_none;
 				temp_print(next_target.P);
 				break;
 
 			case 7:
 			case 106:
-				//? --- M106: Fan On ---
+				//? --- M106: Set Fan Speed / Set Device Power ---
 				//?
-				//? Example: M106
+				//? Example: M106 S120
 				//?
-				//? Turn on the cooling fan (if any).
+				//? Control the cooling fan (if any).
 				//?
+        //? Teacup supports an optional P parameter as a zero-based heater
+        //? index to address. The heater index can differ from the temperature
+        //? sensor index, see config.h.
 
 				#ifdef ENFORCE_ORDER
 					// wait for all moves to complete
 					queue_wait();
 				#endif
-				#ifdef HEATER_FAN
-					heater_set(HEATER_FAN, 255);
-				#endif
-				break;
-
-			case 9:
-			case 107:
-				//? --- M107: Fan Off ---
-				//?
-				//? Example: M107
-				//?
-				//? Turn off the cooling fan (if any).
-				//?
-
-				#ifdef ENFORCE_ORDER
-					// wait for all moves to complete
-					queue_wait();
-				#endif
-				#ifdef HEATER_FAN
-					heater_set(HEATER_FAN, 0);
-				#endif
-				break;
-
-			case 109:
-				//? --- M109: Set Extruder Temperature ---
-				//?
-				//? Example: M109 S190
-				//?
-				//? Set the temperature of the current extruder to 190<sup>o</sup>C and wait for it to reach that value before sending an acknowledgment to the host.  In fact the RepRap firmware waits a while after the temperature has been reached for the extruder to stabilise - typically about 40 seconds.  This can be changed by a parameter in the firmware configuration file when the firmware is compiled.  See also M104 and M116.
-				//?
-				//? Teacup supports an optional P parameter as a sensor index to address.
-				//?
-				if (next_target.seen_S)
-					temp_set(next_target.P, next_target.S);
-				if (next_target.S) {
-					power_on();
-					enable_heater();
-				}
-				else {
-					disable_heater();
-				}
-				enqueue(NULL);
+        #ifdef HEATER_FAN
+          if ( ! next_target.seen_P)
+            next_target.P = HEATER_FAN;
+        // else use the first available device
+        #endif
+				if ( ! next_target.seen_S)
+					break;
+        heater_set(next_target.P, next_target.S);
 				break;
 
 			case 110:
@@ -566,11 +554,11 @@ void process_gcode_command() {
 				//?
 				//? This command is only available in DEBUG builds of Teacup.
 
+				if ( ! next_target.seen_S)
+					break;
 				debug_flags = next_target.S;
 				break;
 			#endif
-
-			// M113- extruder PWM
 
 			case 114:
 				//? --- M114: Get Current Position ---
@@ -588,7 +576,27 @@ void process_gcode_command() {
 					queue_wait();
 				#endif
 				update_current_position();
-				sersendf_P(PSTR("X:%lq,Y:%lq,Z:%lq,E:%lq,F:%ld"), current_position.X, current_position.Y, current_position.Z, current_position.E, current_position.F);
+				sersendf_P(PSTR("X:%lq,Y:%lq,Z:%lq,E:%lq,F:%lu"),
+				                current_position.X, current_position.Y,
+				                current_position.Z, current_position.E,
+				                current_position.F);
+
+				#ifdef	DEBUG
+					if (DEBUG_POSITION && (debug_flags & DEBUG_POSITION)) {
+						sersendf_P(PSTR(",c:%lu}\nEndpoint: X:%ld,Y:%ld,Z:%ld,E:%ld,F:%lu,c:%lu}"),
+						                movebuffer[mb_tail].c, movebuffer[mb_tail].endpoint.X,
+						                movebuffer[mb_tail].endpoint.Y, movebuffer[mb_tail].endpoint.Z,
+						                movebuffer[mb_tail].endpoint.E, movebuffer[mb_tail].endpoint.F,
+						#ifdef ACCELERATION_REPRAP
+							movebuffer[mb_tail].end_c
+						#else
+							movebuffer[mb_tail].c
+						#endif
+						);
+						print_queue();
+					}
+				#endif /* DEBUG */
+
 				// newline is sent from gcode_parse after we return
 				break;
 
@@ -601,10 +609,10 @@ void process_gcode_command() {
 				//? The details are returned to the host computer as key:value pairs separated by spaces and terminated with a linefeed.
 				//?
 				//? sample data from firmware:
-				//?  FIRMWARE_NAME:Teacup FIRMWARE_URL:http%%3A//github.com/triffid/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:1 TEMP_SENSOR_COUNT:1 HEATER_COUNT:1
+				//?  FIRMWARE_NAME:Teacup FIRMWARE_URL:http://github.com/triffid/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:1 TEMP_SENSOR_COUNT:1 HEATER_COUNT:1
 				//?
 
-				sersendf_P(PSTR("FIRMWARE_NAME:Teacup FIRMWARE_URL:http%%3A//github.com/triffid/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:%d TEMP_SENSOR_COUNT:%d HEATER_COUNT:%d"), 1, NUM_TEMP_SENSORS, NUM_HEATERS);
+				sersendf_P(PSTR("FIRMWARE_NAME:Teacup FIRMWARE_URL:http://github.com/triffid/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:%d TEMP_SENSOR_COUNT:%d HEATER_COUNT:%d"), 1, NUM_TEMP_SENSORS, NUM_HEATERS);
 				// newline is sent from gcode_parse after we return
 				break;
 
@@ -613,14 +621,53 @@ void process_gcode_command() {
 				//?
 				//? Example: M116
 				//?
-				//? Wait for ''all'' temperatures and other slowly-changing variables to arrive at their set values.  See also M109.
+				//? Wait for temperatures and other slowly-changing variables to arrive at their set values.
 
 				enqueue(NULL);
 				break;
 
+      case 119:
+        //? --- M119: report endstop status ---
+        //? Report the current status of the endstops configured in the
+        //? firmware to the host.
+        power_on();
+        endstops_on();
+        delay_ms(10); // allow the signal to stabilize
+        #if defined(X_MIN_PIN)
+          sersendf_P(PSTR("x_min:%d "), x_min());
+        #endif
+        #if defined(X_MAX_PIN)
+          sersendf_P(PSTR("x_max:%d "), x_max());
+        #endif
+        #if defined(Y_MIN_PIN)
+          sersendf_P(PSTR("y_min:%d "), y_min());
+        #endif
+        #if defined(Y_MAX_PIN)
+          sersendf_P(PSTR("y_max:%d "), y_max());
+        #endif
+        #if defined(Z_MIN_PIN)
+          sersendf_P(PSTR("z_min:%d "), z_min());
+        #endif
+        #if defined(Z_MAX_PIN)
+          sersendf_P(PSTR("z_max:%d "), z_max());
+        #endif
+        #if ! (defined(X_MIN_PIN) || defined(X_MAX_PIN) || \
+               defined(Y_MIN_PIN) || defined(Y_MAX_PIN) || \
+               defined(Z_MIN_PIN) || defined(Z_MAX_PIN))
+          sersendf_P(PSTR("no endstops defined"));
+        #endif
+        endstops_off();
+        break;
+
+      #ifdef EECONFIG
 			case 130:
 				//? --- M130: heater P factor ---
 				//? Undocumented.
+        #ifdef HEATER_EXTRUDER
+          if ( ! next_target.seen_P)
+            next_target.P = HEATER_EXTRUDER;
+        // else use the first available device
+        #endif
 				if (next_target.seen_S)
 					pid_set_p(next_target.P, next_target.S);
 				break;
@@ -628,6 +675,10 @@ void process_gcode_command() {
 			case 131:
 				//? --- M131: heater I factor ---
 				//? Undocumented.
+        #ifdef HEATER_EXTRUDER
+          if ( ! next_target.seen_P)
+            next_target.P = HEATER_EXTRUDER;
+        #endif
 				if (next_target.seen_S)
 					pid_set_i(next_target.P, next_target.S);
 				break;
@@ -635,6 +686,10 @@ void process_gcode_command() {
 			case 132:
 				//? --- M132: heater D factor ---
 				//? Undocumented.
+        #ifdef HEATER_EXTRUDER
+          if ( ! next_target.seen_P)
+            next_target.P = HEATER_EXTRUDER;
+        #endif
 				if (next_target.seen_S)
 					pid_set_d(next_target.P, next_target.S);
 				break;
@@ -642,6 +697,10 @@ void process_gcode_command() {
 			case 133:
 				//? --- M133: heater I limit ---
 				//? Undocumented.
+        #ifdef HEATER_EXTRUDER
+          if ( ! next_target.seen_P)
+            next_target.P = HEATER_EXTRUDER;
+        #endif
 				if (next_target.seen_S)
 					pid_set_i_limit(next_target.P, next_target.S);
 				break;
@@ -651,21 +710,15 @@ void process_gcode_command() {
 				//? Undocumented.
 				heater_save_settings();
 				break;
-
-			case 135:
-				//? --- M135: set heater output ---
-				//? Undocumented.
-				if (next_target.seen_S) {
-					heater_set(next_target.P, next_target.S);
-					power_on();
-				}
-				break;
+      #endif /* EECONFIG */
 
 			#ifdef	DEBUG
 			case 136:
 				//? --- M136: PRINT PID settings to host ---
 				//? Undocumented.
 				//? This comand is only available in DEBUG builds.
+				if ( ! next_target.seen_P)
+					next_target.P = HEATER_EXTRUDER;
 				heater_print(next_target.P);
 				break;
 			#endif
@@ -674,60 +727,9 @@ void process_gcode_command() {
 				//? --- M140: Set heated bed temperature ---
 				//? Undocumented.
 				#ifdef	HEATER_BED
+					if ( ! next_target.seen_S)
+						break;
 					temp_set(HEATER_BED, next_target.S);
-					if (next_target.S)
-						power_on();
-				#endif
-				break;
-
-			case 190:
-				//? --- M190: Power On ---
-				//? Undocumented.
-				//? This one is pointless in Teacup. Implemented to calm the RepRap gurus.
-				//?
-				power_on();
-				stepper_enable();
-				x_enable();
-				y_enable();
-				z_enable();
-				e_enable();
-				steptimeout = 0;
-				break;
-
-			case 191:
-				//? --- M191: Power Off ---
-				//? Undocumented.
-				//? Same as M2. RepRap obviously prefers to invent new numbers instead of looking into standards. 
-				#ifdef ENFORCE_ORDER
-					// wait for all moves to complete
-					queue_wait();
-				#endif
-				power_off();
-				break;
-
-			case 200:
-				//? --- M200: report endstop status ---
-				//? Report the current status of the endstops configured in the firmware to the host.
-				#if defined(X_MIN_PIN)
-					sersendf_P(PSTR("x_min:%d "), x_min());
-				#endif
-				#if defined(X_MAX_PIN)
-					sersendf_P(PSTR("x_max:%d "), x_max());
-				#endif
-				#if defined(Y_MIN_PIN)
-					sersendf_P(PSTR("y_min:%d "), y_min());
-				#endif
-				#if defined(Y_MAX_PIN)
-					sersendf_P(PSTR("y_max:%d "), y_max());
-				#endif
-				#if defined(Z_MIN_PIN)
-					sersendf_P(PSTR("z_min:%d "), z_min());
-				#endif
-				#if defined(Z_MAX_PIN)
-					sersendf_P(PSTR("z_max:%d "), z_max());
-				#endif
-				#if !(defined(X_MIN_PIN) || defined(X_MAX_PIN) || defined(Y_MIN_PIN) || defined(Y_MAX_PIN) || defined(Z_MIN_PIN) || defined(Z_MAX_PIN))
-					sersendf_P(PSTR("no endstops defined"));
 				#endif
 				break;
 
@@ -772,45 +774,6 @@ void process_gcode_command() {
 				// newline is sent from gcode_parse after we return
 				break;
 
-			case 250:
-				//? --- M250: return current position, end position, queue ---
-				//? Undocumented
-				//? This command is only available in DEBUG builds.
-				update_current_position();
-				sersendf_P(PSTR("{X:%ld,Y:%ld,Z:%ld,E:%ld,F:%lu,c:%lu}\t{X:%ld,Y:%ld,Z:%ld,E:%ld,F:%lu,c:%lu}\t"), current_position.X, current_position.Y, current_position.Z, current_position.E, current_position.F, movebuffer[mb_tail].c, movebuffer[mb_tail].endpoint.X, movebuffer[mb_tail].endpoint.Y, movebuffer[mb_tail].endpoint.Z, movebuffer[mb_tail].endpoint.E, movebuffer[mb_tail].endpoint.F,
-					#ifdef ACCELERATION_REPRAP
-						movebuffer[mb_tail].end_c
-					#else
-						movebuffer[mb_tail].c
-					#endif
-					);
-
-				print_queue();
-				break;
-
-#ifndef SIMULATION
-			case 253:
-				//? --- M253: read arbitrary memory location ---
-				//? Undocumented
-				//? This command is only available in DEBUG builds.
-				if (next_target.seen_P == 0)
-					next_target.P = 1;
-				for (; next_target.P; next_target.P--) {
-					serwrite_hex8(*(volatile uint8_t *)(next_target.S));
-					next_target.S++;
-				}
-				// newline is sent from gcode_parse after we return
-				break;
-
-			case 254:
-				//? --- M254: write arbitrary memory location ---
-				//? Undocumented
-				//? This command is only available in DEBUG builds.
-				sersendf_P(PSTR("%x:%x->%x"), next_target.S, *(volatile uint8_t *)(next_target.S), next_target.P);
-				(*(volatile uint8_t *)(next_target.S)) = next_target.P;
-				// newline is sent from gcode_parse after we return
-				break;
-#endif /* SIMULATION */
 			#endif /* DEBUG */
 
 				// unknown mcode: spit an error

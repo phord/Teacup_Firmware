@@ -49,16 +49,27 @@ uint8_t queue_full() {
 
 /// check if the queue is completely empty
 uint8_t queue_empty() {
-	uint8_t save_reg = SREG;
-	cli();
-	CLI_SEI_BUG_MEMORY_BARRIER();
-	
-	uint8_t result = ((mb_tail == mb_head) && (movebuffer[mb_tail].live == 0))?255:0;
+  uint8_t result;
 
-	MEMORY_BARRIER();
-	SREG = save_reg;
+  ATOMIC_START
+    result = ((mb_tail == mb_head) && (movebuffer[mb_tail].live == 0))?255:0;
+  ATOMIC_END
 
 	return result;
+}
+
+/// Return the current movement, or NULL, if there's no movement going on.
+DDA *queue_current_movement() {
+  DDA* current;
+
+  ATOMIC_START
+    current = &movebuffer[mb_tail];
+
+    if ( ! current->live || current->waitfor_temp || current->nullmove)
+      current = NULL;
+  ATOMIC_END
+
+  return current;
 }
 
 // -------------------------------------------------------
@@ -93,22 +104,19 @@ void queue_step() {
 /// add a move to the movebuffer
 /// \note this function waits for space to be available if necessary, check queue_full() first if waiting is a problem
 /// This is the only function that modifies mb_head and it always called from outside an interrupt.
-void enqueue(TARGET *t) {
-	enqueue_home(t, 0, 0);
-}
-
 void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 	// don't call this function when the queue is full, but just in case, wait for a move to complete and free up the space for the passed target
 	while (queue_full())
-		delay(WAITING_DELAY);
+		delay_us(100);
 
 	uint8_t h = mb_head + 1;
 	h &= (MOVEBUFFER_SIZE - 1);
 
 	DDA* new_movebuffer = &(movebuffer[h]);
-	
-	if (t != NULL) {
-		dda_create(new_movebuffer, t);
+  DDA* prev_movebuffer = (queue_empty() != 0) ? NULL : &movebuffer[mb_head];
+
+  if (t != NULL) {
+    dda_create(new_movebuffer, t, prev_movebuffer);
 		new_movebuffer->endstop_check = endstop_check;
 		new_movebuffer->endstop_stop_cond = endstop_stop_cond;
 	}
@@ -121,18 +129,15 @@ void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 	// make certain all writes to global memory
 	// are flushed before modifying mb_head.
 	MEMORY_BARRIER();
-	
-	mb_head = h;
-	
-	uint8_t save_reg = SREG;
-	cli();
-	CLI_SEI_BUG_MEMORY_BARRIER();
 
-	uint8_t isdead = (movebuffer[mb_tail].live == 0);
-	
-	MEMORY_BARRIER();
-	SREG = save_reg;
-	
+	mb_head = h;
+
+  uint8_t isdead;
+
+  ATOMIC_START
+    isdead = (movebuffer[mb_tail].live == 0);
+  ATOMIC_END
+
 	if (isdead) {
 		next_move();
 		// Compensate for the cli() in setTimer().
@@ -159,9 +164,7 @@ void next_move() {
 		// mb_tail to the timer interrupt routine. 
 		mb_tail = t;
 		if (current_movebuffer->waitfor_temp) {
-			#ifndef	REPRAP_HOST_COMPATIBILITY
-				serial_writestr_P(PSTR("Waiting for target temp\n"));
-			#endif
+			serial_writestr_P(PSTR("Waiting for target temp\n"));
 			current_movebuffer->live = 1;
 			setTimer(HEATER_WAIT_TIMEOUT);
 		}
@@ -178,31 +181,19 @@ void print_queue() {
 }
 
 /// dump queue for emergency stop.
+/// Make sure to have all timers stopped with timer_stop() or
+/// unexpected things might happen.
 /// \todo effect on startpoint is undefined!
 void queue_flush() {
-	// Since the timer interrupt is disabled before this function
-	// is called it is not strictly necessary to write the variables
-	// inside an interrupt disabled block...
-	uint8_t save_reg = SREG;
-	cli();
-	CLI_SEI_BUG_MEMORY_BARRIER();
-	
-	// flush queue
-	mb_tail = mb_head;
-	movebuffer[mb_head].live = 0;
 
-	// disable timer
-	setTimer(0);
-	
-	MEMORY_BARRIER();
-	SREG = save_reg;
+  // if the timer were running, this would require
+  // wrapping in ATOMIC_START ... ATOMIC_END.
+  mb_tail = mb_head;
+  movebuffer[mb_head].live = 0;
 }
 
 /// wait for queue to empty
 void queue_wait() {
-	for (;queue_empty() == 0;) {
-		ifclock(clock_flag_10ms) {
-			clock_10ms();
-		}
-	}
+	while (queue_empty() == 0)
+		clock();
 }
