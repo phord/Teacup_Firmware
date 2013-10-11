@@ -59,11 +59,19 @@ uint32_t approx_distance_3(uint32_t dx, uint32_t dy, uint32_t dz);
 // integer square root algorithm
 uint16_t int_sqrt(uint32_t a);
 
+// integer inverse square root, 12bits precision
+uint16_t int_inv_sqrt(uint16_t a);
+
 // this is an ultra-crude pseudo-logarithm routine, such that:
 // 2 ^ msbloc(v) >= v
 const uint8_t msbloc (uint32_t v);
 
 // Note: the floating point bit is optimized away during compilation
 #define ACCELERATE_RAMP_LEN(speed) (((speed)*(speed)) / (uint32_t)((7200000.0f * ACCELERATION) / (float)STEPS_PER_M_X))
+
+// Initialization constant for the ramping algorithm
+#ifdef ACCELERATION_RAMPING
+#define C0 (((uint32_t)((double)F_CPU / sqrt((double)(STEPS_PER_M_X * ACCELERATION / 1000.)))) << 8)
+#endif
 
 #endif	/* _DDA_MATHS_H */

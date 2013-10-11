@@ -131,7 +131,9 @@ typedef struct {
 	/// total number of steps: set to \f$\max(\Delta x, \Delta y, \Delta z, \Delta e)\f$
 	uint32_t					total_steps;
 
+  #ifndef ACCELERATION_RAMPING
 	uint32_t					c; ///< time until next step, 24.8 fixed point
+  #endif
 
 	#ifdef ACCELERATION_REPRAP
 	uint32_t					end_c; ///< time between 2nd last step and last step
@@ -148,8 +150,8 @@ typedef struct {
   // With the look-ahead functionality, it is possible to retain physical
   // movement between G1 moves. These variables keep track of the entry and
   // exit speeds between moves.
-  uint32_t          F_start;
-  uint32_t          F_end;
+  uint32_t          F_start_in_steps;
+  uint32_t          F_end_in_steps;
   // Displacement vector, in um, based between the difference of the starting
   // point and the target. Required to obtain the jerk between 2 moves.
   // Note: x_delta and co are in steps, not um.
