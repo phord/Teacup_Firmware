@@ -20,7 +20,7 @@ void serial_init(void)
 	int argc = 1;
         char **argv = environ - 3;
 
-        while((int)*argv != argc)
+        while(*argv && argc)
         {
                 ++argc;
                 --argv;

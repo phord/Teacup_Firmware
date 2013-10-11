@@ -190,11 +190,12 @@ functionsbysize: $(OBJ)
 #                                                                            #
 ##############################################################################
 
-SIM_SOURCES = $(PROGRAM).c serial_sim.c dda.c gcode.c timer_sim.c clock_sim.c temp.c sermsg.c dda_queue.c debug.c sersendf.c heater.c analog_sim.c delay_sim.c simulation.c
-SIM_HEADERS = config.h serial.h dda.h gcode.h timer.h clock.h temp.h sermsg.h dda_queue.h debug.h sersendf.h heater.h analog.h delay.h simulation.h
+SIM_SOURCES = serial_sim.c timer_sim.c clock_sim.c analog_sim.c delay_sim.c simulation.c
+SIM_SOURCES += $(filter-out serial.c timer.c clock.c analog.c delay.c, $(SOURCES))
+SIM_HEADERS = config.h serial.h dda.h timer.h clock.h temp.h sermsg.h dda_queue.h debug.h sersendf.h heater.h analog.h delay.h simulation.h
 
 SIM_OBJ = $(patsubst %.c,%.sim.o,${SIM_SOURCES})
-SIM_CFLAGS = -g -Wall -Wstrict-prototypes -Os $(DEFS) -std=gnu99 -funsigned-char -funsigned-bitfields -fshort-enums
+SIM_CFLAGS = -g -Wall -Wstrict-prototypes -Wno-format -Os $(DEFS) -std=gnu99 -funsigned-char -funsigned-bitfields -fshort-enums
 
 %.sim.o: %.c $(SIM_HEADERS)
 	@echo "  CC        $@"

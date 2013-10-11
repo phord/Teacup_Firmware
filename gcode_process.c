@@ -5,7 +5,9 @@
 */
 
 #include	<string.h>
-#include	<avr/interrupt.h>
+#ifndef SIMULATION
+    #include	<avr/interrupt.h>
+#endif
 
 #include	"gcode_parse.h"
 
@@ -786,6 +788,7 @@ void process_gcode_command() {
 				print_queue();
 				break;
 
+#ifndef SIMULATION
 			case 253:
 				//? --- M253: read arbitrary memory location ---
 				//? Undocumented
@@ -807,6 +810,7 @@ void process_gcode_command() {
 				(*(volatile uint8_t *)(next_target.S)) = next_target.P;
 				// newline is sent from gcode_parse after we return
 				break;
+#endif /* SIMULATION */
 			#endif /* DEBUG */
 
 				// unknown mcode: spit an error

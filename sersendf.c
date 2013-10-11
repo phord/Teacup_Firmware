@@ -129,7 +129,7 @@ void sersendf_P(PGM_P format, ...) {
 					j = 0;
 					break;
 				case 'c':
-					serial_writechar(va_arg(args, uint16_t));
+					serial_writechar(va_arg(args, int));
 					j = 0;
 					break;
 				case 'x':
@@ -137,9 +137,9 @@ void sersendf_P(PGM_P format, ...) {
 					if (j == 4)
 						serwrite_hex32(va_arg(args, uint32_t));
 					else if (j == 1)
-						serwrite_hex8(va_arg(args, uint16_t));
+						serwrite_hex8(va_arg(args, int));
 					else
-						serwrite_hex16(va_arg(args, uint16_t));
+						serwrite_hex16(va_arg(args, int));
 					j = 0;
 					break;
 /*				case 'p':

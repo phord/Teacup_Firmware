@@ -2,7 +2,9 @@
 #define	_DELAY_H
 
 #include	<stdint.h>
-#include	<util/delay_basic.h>
+#ifndef SIMULATION
+    #include	<util/delay_basic.h>
+#endif
 #include	"watchdog.h"
 
 #define		WAITING_DELAY		100
@@ -21,6 +23,10 @@ void _delay(uint32_t delay);
 void _delay_ms(uint32_t delay);
 
 
+#ifdef SIMULATION
+void delay(uint32_t d);
+void delay_ms(uint32_t d);
+#else
 // microsecond timer, does reset WDT if feature enabled
 // 0 results in no real delay, but the watchdog
 // reset is called if the feature is enabled
@@ -48,4 +54,5 @@ inline void delay_ms(uint32_t d) {
 	else
 		delay(d * 1000);
  }
+#endif  /* SIMULATION */
 #endif	/* _DELAY_H */

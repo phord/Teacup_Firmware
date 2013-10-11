@@ -5,10 +5,8 @@
 #include "clock.h"
 #include "simulation.h"
 
-static uint8_t clock_counter_250ms = 0;
-static uint8_t clock_counter_1s    = 0;
-volatile uint8_t clock_flag = 0;
-
+volatile uint8_t        clock_flag_10ms = 0;
+static uint8_t clock_counter_10ms = 0;
 static bool clock_initialised = false;
 #define SIM_CLOCK_SLOWDOWN 50
 
@@ -18,14 +16,10 @@ static void timer2_isr(int cause, siginfo_t *HowCome, void *ucontext)
 
 	sim_interrupts = false;
 
-	// 1/4 second tick
-	if (++clock_counter_250ms == 250 / SIM_CLOCK_SLOWDOWN) {
-		clock_flag |= CLOCK_FLAG_250MS;
-		clock_counter_250ms = 0;
-		if (++clock_counter_1s == 4) {
-			clock_flag |= CLOCK_FLAG_1S;
-			clock_counter_1s = 0;
-		}
+	// 1/100 second tick
+	if (++clock_counter_10ms == 10 / SIM_CLOCK_SLOWDOWN) {
+        clock_flag_10ms = 1;
+		clock_counter_10ms = 0;
 	}
 
 	sim_interrupts = true;
