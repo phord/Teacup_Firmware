@@ -71,12 +71,12 @@
 */
 #define	STEPS_PER_M_X					12450 // 4000 / 6 * 100 / 53
 #define	STEPS_PER_M_Y					12450 // Empirically determined half-step value
-#define	STEPS_PER_M_Z					(1330000/4) // 8/4 * 200 / (25.4mpi/18 tpi) * 1000 * EmpiricalCalibration
+#define	STEPS_PER_M_Z					289130 // (1330000/4*40/47) // 8/4 * 200 / (25.4mpi/18 tpi) * 1000 * EmpiricalCalibration
 
 /// http://blog.arcol.hu/?p=157 may help with this one
 //#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
-#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
-//#define	STEPS_PER_M_E					43000  // Empirically determined (mm of feedstock)
+//#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
+#define	STEPS_PER_M_E					(8*43000)  // Empirically determined (mm of feedstock, 16th-steps)
 
 
 /*
@@ -90,12 +90,12 @@
 #define	MAXIMUM_FEEDRATE_X			14000
 #define	MAXIMUM_FEEDRATE_Y			12000          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
 #define	MAXIMUM_FEEDRATE_Z			50
-#define	MAXIMUM_FEEDRATE_E			120
+#define	MAXIMUM_FEEDRATE_E			1500 // 75 is sustainable, but we need faster for reversing (anti-ooze)
 
 /// used when searching endstops and as default feedrate
 #define	SEARCH_FEEDRATE_X			150
 #define	SEARCH_FEEDRATE_Y			150
-#define	SEARCH_FEEDRATE_Z			75
+#define	SEARCH_FEEDRATE_Z			30
 // no SEARCH_FEEDRATE_E, as E can't be searched
 
 /** \def SLOW_HOMING
@@ -313,6 +313,7 @@
 // #define	TEMP_AD595
 // #define	TEMP_PT100
 // #define	TEMP_INTERCOM
+// #define	TEMP_NONE
 
 /***************************************************************************\
 *                                                                           *
