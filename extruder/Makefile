@@ -93,7 +93,6 @@ program: $(PROGRAM).hex config.h
 
 clean:
 	rm -rf *.o *.elf *.lst *.map *.sym *.lss *.eep *.srec *.bin *.hex *.al *.i *.s *~
-	rm -f sim
 
 size: $(PROGRAM).elf
 	@echo "  SIZE                   Atmega168        Atmega328p       Atmega644"
@@ -128,25 +127,3 @@ config.h: config.h.dist
 %.sym: %.elf
 	@echo "  SYM       $@"
 	@$(OBJDUMP) -t $< | perl -ne 'BEGIN { printf "  ADDR  NAME                  SIZE\n"; } /([0-9a-f]+)\s+(\w+)\s+O\s+\.(bss|data)\s+([0-9a-f]+)\s+(\w+)/ && printf "0x%04x  %-20s +%d\n", eval("0x$$1") & 0xFFFF, $$5, eval("0x$$4")' | sort -k1 > $@
-
-
-##############################################################################
-#                                                                            #
-# Simulation                                                                 #
-#                                                                            #
-##############################################################################
-
-SIM_SOURCES = serial_sim.c timer_sim.c clock_sim.c analog_sim.c delay_sim.c simulation.c
-SIM_SOURCES += $(filter-out serial.c timer.c clock.c analog.c delay.c, $(SOURCES))
-SIM_HEADERS = config.h serial.h dda.h timer.h clock.h temp.h sermsg.h dda_queue.h debug.h sersendf.h heater.h analog.h delay.h simulation.h
-
-SIM_OBJ = $(patsubst %.c,%.sim.o,${SIM_SOURCES})
-SIM_CFLAGS = -g -Wall -Wstrict-prototypes -Wno-format -Os $(DEFS) -std=gnu99 -funsigned-char -funsigned-bitfields -fshort-enums
-
-%.sim.o: %.c $(SIM_HEADERS)
-	@echo "  CC        $@"
-	@cc -DDEBUG -DSIMULATION -c $(SIM_CFLAGS) -o $@ $<
-
-sim:	$(SIM_OBJ)
-	@echo "  LINK      $@"
-	@cc $(SIM_CFLAGS) -o $@ $^
