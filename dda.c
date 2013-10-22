@@ -734,6 +734,7 @@ void dda_step(DDA *dda) {
   Updating speed 500 times a second is easily enough for smooth acceleration!
 */
 void dda_clock() {
+  static volatile uint8_t busy = 0;
   DDA *dda;
   static DDA *last_dda = NULL;
   static uint8_t endstop_stop = 0; ///< Stop due to endstop trigger
@@ -748,6 +749,13 @@ void dda_clock() {
 
   if (dda == NULL)
     return;
+
+  // Lengthy calculations ahead!
+  // Make sure we didn't re-enter, then allow nested interrupts.
+  if (busy)
+    return;
+  busy = 1;
+  sei();
 
   // Caution: we mangle step counters here without locking interrupts. This
   //          means, we trust dda isn't changed behind our back, which could
@@ -829,6 +837,9 @@ void dda_clock() {
   } /* if (endstop_stop == 0) */
 
   last_dda = dda;
+
+  cli(); // Compensate sei() above.
+  busy = 0;
 }
 
 /// update global current_position struct
