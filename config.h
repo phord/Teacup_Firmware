@@ -102,7 +102,7 @@
 	wether to search the home point slowly
 		With some endstop configurations, like when probing for the surface of a PCB, you can't deal with overrunning the endstop. In such a case, uncomment this definition.
 */
-#define	SLOW_HOMING
+// #define	SLOW_HOMING
 
 /// this is how many steps to suck back the filament by when we stop. set to zero to disable
 #define	E_STARTSTOP_STEPS			289
@@ -271,6 +271,7 @@
 //#define	E_INVERT_ENABLE
 
 #define	PS_ON_PIN							DIO15
+//#define PS_MOSFET_PIN         xxxx
 #define STEPPER_ENABLE_PIN		DIO24
 #define	STEPPER_INVERT_ENABLE
 
@@ -314,7 +315,6 @@
 // #define	TEMP_AD595
 // #define	TEMP_PT100
 // #define	TEMP_INTERCOM
-// #define	TEMP_NONE
 
 /***************************************************************************\
 *                                                                           *
