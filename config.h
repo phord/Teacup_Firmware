@@ -69,14 +69,14 @@
 
 	all numbers are integers, so no decimal point, please :-)
 */
-#define	STEPS_PER_M_X					12450 // 4000 / 6 * 100 / 53
-#define	STEPS_PER_M_Y					12450 // Empirically determined half-step value
-#define	STEPS_PER_M_Z					289130 // (1330000/4*40/47) // 8/4 * 200 / (25.4mpi/18 tpi) * 1000 * EmpiricalCalibration
+#define	STEPS_PER_M_X					49260   // Calculated at http://calculator.josefprusa.cz/
+#define	STEPS_PER_M_Y					49260   // Using MXL belt and 1/8 microstepping
+#define	STEPS_PER_M_Z					1133860	// 1/8 ustepping at 5/16" 1.411111 mm/rotation
 
 /// http://blog.arcol.hu/?p=157 may help with this one
 //#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
 //#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
-#define	STEPS_PER_M_E					(8*43000)  // Empirically determined (mm of feedstock, 16th-steps)
+#define	STEPS_PER_M_E					(8*43000*56/20*21/24)  // Empirically determined (mm of feedstock, 16th-steps)
 
 
 /*
@@ -112,11 +112,11 @@
 	Define them to your machine's size relative to what your host considers to be the origin.
 */
 
-#define	X_MIN			0.0
-#define	X_MAX			190.0
+//#define	X_MIN			0.0
+//#define	X_MAX			190.0
 
-#define	Y_MIN			0.0
-#define	Y_MAX			170.0
+//#define	Y_MIN			0.0
+//#define	Y_MAX			170.0
 
 //#define	Z_MIN			0.0
 //#define	Z_MAX			140.0
@@ -192,7 +192,8 @@
   Units: micrometers
   Sane values: 5 to 200
 */
-#define LOOKAHEAD_MAX_JERK_XY 10
+// #define LOOKAHEAD_MAX_JERK_XY 50	// Resulted in some X and Y slips on 5mm-calibration-test
+#define LOOKAHEAD_MAX_JERK_XY 25
 
 /** \def LOOKAHEAD_MAX_JERK_E
   When joining moves with different extrusion rates, define the maximum jerk
@@ -201,7 +202,7 @@
   Units: micrometers
   Sane values: 5 to 200
 */
-#define LOOKAHEAD_MAX_JERK_E 10
+#define LOOKAHEAD_MAX_JERK_E 100
 
 
 
@@ -225,7 +226,7 @@
 	internal pullup resistors
 		the ATmega has internal pullup resistors on it's input pins which are counterproductive with the commonly used eletronic endstops, so they should be switched off. For other endstops, like mechanical ones, you may want to uncomment this.
 */
-//#define USE_INTERNAL_PULLUPS
+#define USE_INTERNAL_PULLUPS
 
 /*
 	user defined pins
@@ -235,7 +236,7 @@
 
 #define	X_STEP_PIN						DIO19
 #define	X_DIR_PIN							DIO18
-//#define	X_MIN_PIN							DIO7
+#define	X_MIN_PIN							DIO7
 //#define	X_MAX_PIN							xxxx
 //#define	X_ENABLE_PIN					xxxx
 //#define	X_INVERT_DIR
