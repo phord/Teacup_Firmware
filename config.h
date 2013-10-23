@@ -89,8 +89,8 @@
 */
 
 /// used for G0 rapid moves and as a cap for all other feedrates
-#define	MAXIMUM_FEEDRATE_X			14000
-#define	MAXIMUM_FEEDRATE_Y			12000          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
+#define	MAXIMUM_FEEDRATE_X			1400
+#define	MAXIMUM_FEEDRATE_Y			1200          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
 #define	MAXIMUM_FEEDRATE_Z			50
 #define	MAXIMUM_FEEDRATE_E			1500 // 75 is sustainable, but we need faster for reversing (anti-ooze)
 
@@ -104,7 +104,7 @@
 	wether to search the home point slowly
 		With some endstop configurations, like when probing for the surface of a PCB, you can't deal with overrunning the endstop. In such a case, uncomment this definition.
 */
-// #define	SLOW_HOMING
+#define	SLOW_HOMING
 
 /// this is how many steps to suck back the filament by when we stop. set to zero to disable
 #define	E_STARTSTOP_STEPS			289
@@ -178,7 +178,7 @@
 
 		// TODO: figure out how to add acceleration to this algorithm
 */
-// #define ACCELERATION_TEMPORAL
+//#define ACCELERATION_TEMPORAL
 
 /** \def LOOKAHEAD
   Define this to enable look-ahead during *ramping* acceleration to smoothly
