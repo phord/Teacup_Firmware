@@ -734,7 +734,7 @@ void dda_clock() {
     last_dda = dda;
   }
 
-  if (dda == NULL)
+  if (dda == NULL || dda->live == 0)
     return;
 
   // Lengthy calculations ahead!
