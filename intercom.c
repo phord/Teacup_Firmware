@@ -4,8 +4,10 @@
 	\brief motherboard <-> extruder board protocol
 */
 
-#include	<avr/io.h>
-#include	<avr/interrupt.h>
+#ifndef SIMULATION
+	#include	<avr/io.h>
+	#include	<avr/interrupt.h>
+#endif
 #include	"memory_barrier.h"
 
 #include	"config.h"

@@ -11,7 +11,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <math.h>
+#ifndef SIMULATION
 #include <avr/interrupt.h>
+#endif
 
 #include "dda_maths.h"
 #include "dda.h"
@@ -186,7 +188,7 @@ void dda_join_moves(DDA *prev, DDA *current) {
   #endif
 
   // Sanity: if the previous move or this one has no actual movement, bail now. (e.g. G1 F1500)
-  if(prev->delta.X==0 && prev->delta.Y==0 && prev->delta.Z==0 && prev->delta.E==0) return;
+  if( !prev || (prev->delta.X==0 && prev->delta.Y==0 && prev->delta.Z==0 && prev->delta.E==0)) return;
   if(current->delta.X==0 && current->delta.Y==0 && current->delta.Z==0 && current->delta.E==0) return;
 
   serprintf(PSTR("Current Delta: %ld,%ld,%ld E:%ld Live:%d\r\n"), current->delta.X, current->delta.Y, current->delta.Z, current->delta.E, current->live);
