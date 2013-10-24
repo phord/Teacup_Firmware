@@ -2,7 +2,8 @@
 #define	_HEATER_H
 
 #include "config.h"
-#include	<stdint.h>
+#include <stdint.h>
+#include "simulation.h"
 #include "temp.h"
 
 #undef DEFINE_HEATER

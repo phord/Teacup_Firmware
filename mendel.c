@@ -23,9 +23,11 @@
 			M115
 			ctrl+d \endcode
 */
-
-#include	<avr/io.h>
-#include	<avr/interrupt.h>
+#ifndef SIMULATION
+	#include	<avr/io.h>
+	#include	<avr/interrupt.h>
+	#include	"arduino.h"
+#endif
 
 #include	"config.h"
 #include	"fuses.h"
@@ -43,9 +45,9 @@
 #include	"heater.h"
 #include	"analog.h"
 #include	"pinio.h"
-#include	"arduino.h"
 #include	"clock.h"
 #include	"intercom.h"
+#include	"simulation.h"
 
 /// initialise all I/O - set pins as input or output, turn off unused subsystems, etc
 void io_init(void) {
@@ -225,8 +227,17 @@ void init(void) {
 /// this is where it all starts, and ends
 ///
 /// just run init(), then run an endless loop where we pass characters from the serial RX buffer to gcode_parse_char() and check the clocks
+#ifdef SIMULATION
+int g_argc;
+char ** g_argv;
+int main (int argc, char ** argv)
+{
+	g_argc = argc;
+	g_argv = argv;
+#else
 int main (void)
 {
+#endif
 	init();
 
 	// main loop
