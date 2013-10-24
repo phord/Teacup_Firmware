@@ -582,13 +582,26 @@ void process_gcode_command() {
 				#ifdef	DEBUG
 					if (DEBUG_POSITION && (debug_flags & DEBUG_POSITION)) {
 						sersendf_P(PSTR(",c:%lu}\nEndpoint: X:%ld,Y:%ld,Z:%ld,E:%ld,F:%lu,c:%lu}"),
-						                movebuffer[mb_tail].c, movebuffer[mb_tail].endpoint.X,
+						#ifdef ACCELERATION_REPRAP
+							movebuffer[mb_tail].end_c,
+						#else
+						#ifndef ACCELERATION_RAMPING
+							movebuffer[mb_tail].c,
+						#else
+							0,
+						#endif
+						#endif
+								movebuffer[mb_tail].endpoint.X,
 						                movebuffer[mb_tail].endpoint.Y, movebuffer[mb_tail].endpoint.Z,
 						                movebuffer[mb_tail].endpoint.E, movebuffer[mb_tail].endpoint.F,
 						#ifdef ACCELERATION_REPRAP
 							movebuffer[mb_tail].end_c
 						#else
+						#ifndef ACCELERATION_RAMPING
 							movebuffer[mb_tail].c
+						#else
+							0
+						#endif
 						#endif
 						);
 						print_queue();
