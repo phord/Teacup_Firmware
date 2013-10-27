@@ -158,7 +158,7 @@
 	acceleration and deceleration ramping.
 		Each movement starts at (almost) no speed, linearly accelerates to target speed and decelerates just in time to smoothly stop at the target. alternative to ACCELERATION_REPRAP
 */
-#define ACCELERATION_RAMPING
+//#define ACCELERATION_RAMPING
 
 /** \def ACCELERATION
 	how fast to accelerate when using ACCELERATION_RAMPING.
@@ -178,14 +178,14 @@
 
 		// TODO: figure out how to add acceleration to this algorithm
 */
-// #define ACCELERATION_TEMPORAL
+#define ACCELERATION_TEMPORAL
 
 /** \def LOOKAHEAD
   Define this to enable look-ahead during *ramping* acceleration to smoothly
   transition between moves instead of performing a dead stop every move.
   Enabling look-ahead requires about 3600 bytes of flash memory.
 */
-#define LOOKAHEAD
+//#define LOOKAHEAD
 
 /** \def LOOKAHEAD_MAX_JERK_XY
   When performing look-ahead, we need to decide what an acceptable jerk to the
@@ -272,10 +272,8 @@
 //#define	E_INVERT_ENABLE
 
 #define	PS_ON_PIN							DIO15
-#define STEPPER_ENABLE_PIN		DIO24
+#define STEPPER_ENABLE_PIN		DIO24xxx
 #define	STEPPER_INVERT_ENABLE
-
-
 
 /***************************************************************************\
 *                                                                           *
@@ -576,7 +574,3 @@ PWM value for 'off'
 * OCR5CL - PL5 - DIO44                                                      *
 *                                                                           *
 \***************************************************************************/
-
-#ifdef SIMULATION
-    #include "simulation.h"
-#endif
