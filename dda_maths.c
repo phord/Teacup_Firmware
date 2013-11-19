@@ -14,6 +14,24 @@
   #define PROGMEM
 #endif
 
+/*! Pre-calculated constant values for axis um <=> steps conversions.
+ *
+ *  These should be calculated at run-time once during startup if the
+ *  STEPS_PER_M_* constants are ever replaced with run-time options.
+*/
+const axes_uint32_t axis_qn PROGMEM = {
+  STEPS_PER_M_X / UM_PER_METER,
+  STEPS_PER_M_Y / UM_PER_METER,
+  STEPS_PER_M_Z / UM_PER_METER,
+  STEPS_PER_M_E / UM_PER_METER
+};
+const axes_uint32_t axis_qr PROGMEM = {
+  STEPS_PER_M_X % UM_PER_METER,
+  STEPS_PER_M_Y % UM_PER_METER,
+  STEPS_PER_M_Z % UM_PER_METER,
+  STEPS_PER_M_E % UM_PER_METER
+};
+
 /*!
   Pre-calculated constant values for axis um <=> steps conversions.
 
