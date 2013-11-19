@@ -4,6 +4,7 @@
 #include	<stdint.h>
 
 #include	"config.h"
+#include "dda.h"
 
 // return rounded result of multiplicand * multiplier / divisor
 // this version is with quotient and remainder precalculated elsewhere
@@ -26,28 +27,32 @@ inline int32_t muldiv(int32_t multiplicand, uint32_t multiplier,
 // it might be worth pre-calculating muldivQR()'s qn and rn in dda_init()
 // as soon as STEPS_PER_M_{XYZE} is no longer a compile-time variable.
 
+#define UM_PER_METER (1000000UL)
+extern const axes_uint32_t axis_qn;
+extern const axes_uint32_t axis_qr;
+static int32_t um_to_steps(int32_t, enum axis_e a) __attribute__ ((always_inline));
+inline int32_t um_to_steps(int32_t distance, enum axis_e a) {
+    return muldivQR(distance, axis_qn[a], axis_qr[a], UM_PER_METER);
+}
+
 static int32_t um_to_steps_x(int32_t) __attribute__ ((always_inline));
 inline int32_t um_to_steps_x(int32_t distance) {
-    return muldivQR(distance, STEPS_PER_M_X / 1000000UL,
-                    STEPS_PER_M_X % 1000000UL, 1000000UL);
+    return um_to_steps(distance, X);
 }
 
 static int32_t um_to_steps_y(int32_t) __attribute__ ((always_inline));
 inline int32_t um_to_steps_y(int32_t distance) {
-    return muldivQR(distance, STEPS_PER_M_Y / 1000000UL,
-                    STEPS_PER_M_Y % 1000000UL, 1000000UL);
+    return um_to_steps(distance, Y);
 }
 
 static int32_t um_to_steps_z(int32_t) __attribute__ ((always_inline));
 inline int32_t um_to_steps_z(int32_t distance) {
-    return muldivQR(distance, STEPS_PER_M_Z / 1000000UL,
-                    STEPS_PER_M_Z % 1000000UL, 1000000UL);
+    return um_to_steps(distance, Z);
 }
 
 static int32_t um_to_steps_e(int32_t) __attribute__ ((always_inline));
 inline int32_t um_to_steps_e(int32_t distance) {
-    return muldivQR(distance, STEPS_PER_M_E / 1000000UL,
-                    STEPS_PER_M_E % 1000000UL, 1000000UL);
+    return um_to_steps(distance, E);
 }
 
 // approximate 2D distance
