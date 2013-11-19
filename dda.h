@@ -41,12 +41,9 @@ typedef struct {
 } TARGET;
 
 /**
-	\struct MOVE_STATE
-	\brief this struct is made for tracking the current state of the movement
-
-	Parts of this struct are initialised only once per reboot, so make sure dda_step() leaves them with a value compatible to begin a new movement at the end of the movement. Other parts are filled in by dda_start().
-*/
-typedef struct {
+ \struct VECTOR4D
+ \brief 4 dimensional vector used to describe the difference between moves.
+  Units are in micrometers and usually based off 'TARGET'.
 	// bresenham counters
   axes_int32_t      counter; ///< counter for total_steps vs each axis
 
