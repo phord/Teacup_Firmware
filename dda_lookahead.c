@@ -190,24 +190,24 @@ void dda_join_moves(DDA *prev, DDA *current) {
     return;
 
   serprintf(PSTR("Current Delta: %ld,%ld,%ld E:%ld Live:%d\r\n"),
-            current->delta_um.X, current->delta_um.Y, current->delta_um.Z,
-            current->delta_um.E, current->live);
+            current->delta_um[X], current->delta_um[Y], current->delta_um[Z],
+            current->delta_um[E], current->live);
   serprintf(PSTR("Prev    Delta: %ld,%ld,%ld E:%ld Live:%d\r\n"),
-            prev->delta_um.X, prev->delta_um.Y, prev->delta_um.Z,
-            prev->delta_um.E, prev->live);
+            prev->delta_um[X], prev->delta_um[Y], prev->delta_um[Z],
+            prev->delta_um[E], prev->live);
 
   // Look-ahead: attempt to join moves into smooth movements
   // Note: moves are only modified after the calculations are complete.
   // Only prepare for look-ahead if we have 2 available moves to
   // join and the Z axis is unused (for now, Z axis moves are NOT joined).
-  if (prev->live == 0 && prev->delta_um.Z == current->delta_um.Z) {
+  if (prev->live == 0 && prev->delta_um[Z] == current->delta_um[Z]) {
     // Calculate the jerk if the previous move and this move would be joined
     // together at full speed.
-    jerk = dda_jerk_size_2d(prev->delta_um.X, prev->delta_um.Y, prev->endpoint.F,
-                  current->delta_um.X, current->delta_um.Y, current->endpoint.F);
+    jerk = dda_jerk_size_2d(prev->delta_um[X], prev->delta_um[Y], prev->endpoint.F,
+                  current->delta_um[X], current->delta_um[Y], current->endpoint.F);
     serprintf(PSTR("Jerk: %lu\r\n"), jerk);
-    jerk_e = dda_jerk_size_1d(prev->delta_um.E, prev->endpoint.F,
-                              current->delta_um.E, current->endpoint.F);
+    jerk_e = dda_jerk_size_1d(prev->delta_um[E], prev->endpoint.F,
+                              current->delta_um[E], current->endpoint.F);
     serprintf(PSTR("Jerk_e: %lu\r\n"), jerk_e);
   } else {
     // Move already executing or Z moved: abort the join
