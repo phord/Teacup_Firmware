@@ -52,11 +52,21 @@ TARGET BSS current_position;
 /// \brief numbers for tracking the current state of movement
 MOVE_STATE BSS move_state;
 
+/// \var maximum_feedrate
+/// \brief maximum allowed feedrate on each axis
 const axes_uint32_t maximum_feedrate PROGMEM = {
   MAXIMUM_FEEDRATE_X,
   MAXIMUM_FEEDRATE_Y,
   MAXIMUM_FEEDRATE_Z,
   MAXIMUM_FEEDRATE_E
+};
+
+/// \var search_feedrate
+/// \brief desired feedrate for homing on each axis except E
+const axes_uint32_t search_feedrate PROGMEM = {
+  SEARCH_FEEDRATE_X,
+  SEARCH_FEEDRATE_Y,
+  SEARCH_FEEDRATE_Z
 };
 
 /*! Inititalise DDA movement structures
