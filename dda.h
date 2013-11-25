@@ -201,4 +201,10 @@ void dda_clock(void);
 // update current_position
 void update_current_position(void);
 
+// Find the direction of the 'n' axis
+int get_direction(DDA *dda, enum axis_e n);
+
+// Set the direction of the 'n' axis
+void set_direction(DDA *dda, enum axis_e n, int dir);
+
 #endif	/* _DDA_H */
