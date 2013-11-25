@@ -207,6 +207,9 @@ void dda_clock(void);
 // update current_position
 void update_current_position(void);
 
+// Raise the stepper pin on the 'n' axis
+void do_step(enum axis_e n);
+
 // Find the direction of the 'n' axis
 int get_direction(DDA *dda, enum axis_e n);
 
