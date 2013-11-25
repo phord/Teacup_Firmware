@@ -160,7 +160,7 @@ void dda_create(DDA *dda, TARGET *target) {
 
     set_direction(dda, i, (target->axis[i] >= startpoint.axis[i])?1:0);
     #ifdef LOOKAHEAD
-      // Also displacements in micrometers, but for the lookahead alogrithms.
+      // Also displacements in micrometers, but for the lookahead algorithms.
       dda->delta_um[i] = target->axis[i] - startpoint.axis[i];
     #endif
   }
@@ -391,18 +391,6 @@ void dda_create(DDA *dda, TARGET *target) {
   #endif
 }
 
-// step the 'n' axis
-void do_step(enum axis_e n) {
-  if (n == X)
-    x_step();
-  else if (n == Y)
-    y_step();
-  else if (n == Z)
-    z_step();
-  else if (n == E)
-    e_step();
-}
-
 /*! Start a prepared DDA
 	\param *dda pointer to entry in dda_queue to start
 
@@ -539,15 +527,27 @@ void dda_step(DDA *dda) {
 		move_state.step_no++;
 	#endif
 
-	#ifdef ACCELERATION_TEMPORAL
-		/** How is this ACCELERATION TEMPORAL expected to work?
+  #ifdef ACCELERATION_TEMPORAL
+    /** How is this ACCELERATION TEMPORAL expected to work?
 
-			All axes work independently of each other, as if they were on four different, synchronized timers. As we have not enough suitable timers, we have to share one for all axes.
+      All axes work independently of each other, as if they were on four
+      different, synchronized timers. As we have not enough suitable timers,
+      we have to share one for all axes.
 
-			To do this, each axis maintains the time of its last step in move_state.{xyze}_time. This time is updated as the step is done, see early in dda_step(). To find out which axis is the next one to step, the time of each axis' next step is compared to the time of the step just done. Zero means this actually is the axis just stepped, the smallest value > 0 wins.
+      To do this, each axis maintains the time of its last step in
+      move_state.time[]. This time is updated as the step is done, see early
+      in dda_step(). To find out which axis is the next one to step, the time
+      of each axis' next step is compared to the time of the step just done.
+      Zero means this actually is the axis just stepped, the smallest value > 0
+      wins.
 
-			One problem undoubtly arising is, steps should sometimes be done at {almost,exactly} the same time. We trust the timer to deal properly with very short or even zero periods. If a step can't be done in time, the timer shall do the step as soon as possible and compensate for the delay later. In turn we promise here to send a maximum of four such short-delays consecutively and to give sufficient time on average.
-		*/
+      One problem undoubtedly arising is, steps should sometimes be done at
+      {almost,exactly} the same time. We trust the timer to deal properly with
+      very short or even zero periods. If a step can't be done in time, the timer
+      shall do the step as soon as possible and compensate for the delay later. In
+      turn we promise here to send a maximum of four such short-delays consecutively
+      and to give sufficient time on average.
+   */
 		uint32_t c_candidate;
 
 		dda->c = 0xFFFFFFFF;
@@ -614,8 +614,10 @@ void dda_clock() {
   DDA *dda;
   static DDA *last_dda = NULL;
   uint8_t endstop_trigger = 0;
+#ifdef ACCELERATION_RAMPING
   uint32_t move_step_no, move_c;
   uint8_t recalc_speed;
+#endif
 
   dda = queue_current_movement();
   if (dda != last_dda) {
@@ -817,6 +819,25 @@ void update_current_position() {
       current_position.axis[E] = move_state.steps[E] * 1000 / steps_per_cm[E];
     // current_position.F is updated in dda_start()
   }
+}
+
+/********************************************************************
+ * Axis decoders
+ *
+ * Specialized functions that turn an axis_e into a specific PIN or bit
+ * action.
+ ********************************************************************/
+
+// step the 'n' axis
+void do_step(enum axis_e n) {
+  if (n == X)
+    x_step();
+  else if (n == Y)
+    y_step();
+  else if (n == Z)
+    z_step();
+  else if (n == E)
+    e_step();
 }
 
 int get_direction(DDA *dda, enum axis_e n) {
