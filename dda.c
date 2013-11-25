@@ -492,7 +492,7 @@ void dda_step(DDA *dda) {
   do_step(i);
   move_state.steps[i]--;
   move_state.time[i] += dda->step_interval[i];
-  move_state.all_time = move_state.time[i];
+  move_state.last_time = move_state.time[i];
 #endif
 
 	#if STEP_INTERRUPT_INTERRUPTIBLE && ! defined ACCELERATION_RAMPING
@@ -550,7 +550,7 @@ void dda_step(DDA *dda) {
 		dda->c = 0xFFFFFFFF;
     for (i = X; i < AXIS_COUNT; i++) {
       if (move_state.steps[i]) {
-        c_candidate = move_state.time[i] + dda->step_interval[i] - move_state.all_time;
+        c_candidate = move_state.time[i] + dda->step_interval[i] - move_state.last_time;
         if (c_candidate < dda->c) {
           dda->axis_to_step = i;
           dda->c = c_candidate;
@@ -594,7 +594,7 @@ void dda_step(DDA *dda) {
 
 /*! Do regular movement maintenance.
 
-  This should be called pretty often, like once every 1 ot 2 milliseconds.
+  This should be called pretty often, like once every 1 or 2 milliseconds.
 
   Currently, this is checking the endstops and doing acceleration maths. These
   don't need to be checked/recalculated on every single step, so this code
