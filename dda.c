@@ -52,6 +52,13 @@ TARGET BSS current_position;
 /// \brief numbers for tracking the current state of movement
 MOVE_STATE BSS move_state;
 
+const axes_uint32_t maximum_feedrate PROGMEM = {
+  MAXIMUM_FEEDRATE_X,
+  MAXIMUM_FEEDRATE_Y,
+  MAXIMUM_FEEDRATE_Z,
+  MAXIMUM_FEEDRATE_E
+};
+
 /*! Inititalise DDA movement structures
 */
 void dda_init(void) {
@@ -100,7 +107,8 @@ void dda_new_startpoint(void) {
  *    already.
  */
 void dda_create(DDA *dda, TARGET *target) {
-	uint32_t	steps, x_delta_um, y_delta_um, z_delta_um, e_delta_um;
+  uint32_t steps;
+  axes_uint32_t delta_um;
 	uint32_t	distance, c_limit, c_limit_calc;
   #ifdef LOOKAHEAD
   // Number the moves to identify them; allowed to overflow.
@@ -132,71 +140,44 @@ void dda_create(DDA *dda, TARGET *target) {
     dda->id = idcnt++;
   #endif
 
-// TODO TODO: We should really make up a loop for all axes.
-//            Think of what happens when a sixth axis (multi colour extruder)
-//            appears?
-	x_delta_um = (uint32_t)abs32(target->axis[X] - startpoint.axis[X]);
-	y_delta_um = (uint32_t)abs32(target->axis[Y] - startpoint.axis[Y]);
-	z_delta_um = (uint32_t)abs32(target->axis[Z] - startpoint.axis[Z]);
+  enum axis_e i;
+  for (i = X; i < AXIS_COUNT; i++) {
+    delta_um[i] = (uint32_t)abs32(target->axis[i] - startpoint.axis[i]);
 
-	steps = um_to_steps_x(target->axis[X]);
-	dda->delta[X] = abs32(steps - startpoint_steps.axis[X]);
-	startpoint_steps.axis[X] = steps;
-	steps = um_to_steps_y(target->axis[Y]);
-	dda->delta[Y] = abs32(steps - startpoint_steps.axis[Y]);
-	startpoint_steps.axis[Y] = steps;
-	steps = um_to_steps_z(target->axis[Z]);
-	dda->delta[Z] = abs32(steps - startpoint_steps.axis[Z]);
-	startpoint_steps.axis[Z] = steps;
+    steps = um_to_steps(target->axis[i], i);
+    dda->delta[i] = abs32(steps - startpoint_steps.axis[i]);
+    startpoint_steps.axis[i] = steps;
 
-	dda->x_direction = (target->axis[X] >= startpoint.axis[X])?1:0;
-	dda->y_direction = (target->axis[Y] >= startpoint.axis[Y])?1:0;
-	dda->z_direction = (target->axis[Z] >= startpoint.axis[Z])?1:0;
+    set_direction(dda, i, (target->axis[i] >= startpoint.axis[i])?1:0);
+    #ifdef LOOKAHEAD
+      // Also displacements in micrometers, but for the lookahead alogrithms.
+      dda->delta_um[i] = target->axis[i] - startpoint.axis[i];
+    #endif
+  }
 
-	if (target->e_relative) {
-		e_delta_um = abs32(target->axis[E]);
-		dda->delta[E] = abs32(um_to_steps_e(target->axis[E]));
-		dda->e_direction = (target->axis[E] >= 0)?1:0;
-	}
-	else {
-		e_delta_um = (uint32_t)abs32(target->axis[E] - startpoint.axis[E]);
-		steps = um_to_steps_e(target->axis[E]);
-		dda->delta[E] = abs32(steps - startpoint_steps.axis[E]);
-		startpoint_steps.axis[E] = steps;
-		dda->e_direction = (target->axis[E] >= startpoint.axis[E])?1:0;
-	}
-
-  #ifdef LOOKAHEAD
-  // Also displacements in micrometers, but for the lookahead alogrithms.
-  dda->delta_um[X] = target->axis[X] - startpoint.axis[X];
-  dda->delta_um[Y] = target->axis[Y] - startpoint.axis[Y];
-  dda->delta_um[Z] = target->axis[Z] - startpoint.axis[Z];
-  dda->delta_um[E] = target->e_relative ? target->axis[E] :
-                                          target->axis[E] - startpoint.axis[E];
-  #endif
+  if (target->e_relative) {
+    delta_um[E] = abs32(target->axis[E]);
+    dda->delta[E] = abs32(um_to_steps(target->axis[E],E));
+    dda->e_direction = (target->axis[E] >= 0)?1:0;
+  }
 
 	if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
     sersendf_P(PSTR("[%ld,%ld,%ld,%ld]"),
                target->axis[X] - startpoint.axis[X], target->axis[Y] - startpoint.axis[Y],
                target->axis[Z] - startpoint.axis[Z], target->axis[E] - startpoint.axis[E]);
 
-  dda->total_steps = dda->delta[X];
-  dda->fast_um = x_delta_um;
-  dda->fast_spm = STEPS_PER_M_X;
-  if (dda->delta[Y] > dda->total_steps) {
-    dda->total_steps = dda->delta[Y];
-    dda->fast_um = y_delta_um;
-    dda->fast_spm = STEPS_PER_M_Y;
-  }
-  if (dda->delta[Z] > dda->total_steps) {
-    dda->total_steps = dda->delta[Z];
-    dda->fast_um = z_delta_um;
-    dda->fast_spm = STEPS_PER_M_Z;
-  }
-  if (dda->delta[E] > dda->total_steps) {
-    dda->total_steps = dda->delta[E];
-    dda->fast_um = e_delta_um;
-    dda->fast_spm = STEPS_PER_M_E;
+  for (i=X; i < AXIS_COUNT; i++) {
+    static const axes_uint32_t steps_per_m PROGMEM = {
+      STEPS_PER_M_X,
+      STEPS_PER_M_Y,
+      STEPS_PER_M_Z,
+      STEPS_PER_M_E
+    };
+    if (i==X || dda->delta[i] > dda->total_steps) {
+      dda->total_steps = dda->delta[i];
+      dda->fast_um = delta_um[i];
+      dda->fast_spm = steps_per_m[i];
+    }
   }
 
 	if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
@@ -214,31 +195,30 @@ void dda_create(DDA *dda, TARGET *target) {
 		// Z is enabled in dda_start()
 		e_enable();
 
-		distance = approx_distance_3(x_delta_um, y_delta_um, z_delta_um);
+    distance = approx_distance_3(delta_um[X], delta_um[Y], delta_um[Z]);
 
 		if (distance < 2)
-			distance = e_delta_um;
+			distance = delta_um[E];
 
 		if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
 			sersendf_P(PSTR(",ds:%lu"), distance);
 
-		#ifdef	ACCELERATION_TEMPORAL
-			// bracket part of this equation in an attempt to avoid overflow: 60 * 16MHz * 5mm is >32 bits
-			uint32_t move_duration, md_candidate;
+    #ifdef	ACCELERATION_TEMPORAL
+      // bracket part of this equation in an attempt to avoid overflow: 60 * 16MHz * 5mm is >32 bits
+      uint32_t move_duration, md_candidate;
+      static const axes_uint32_t max_tics_per_um PROGMEM = {
+        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_X * 1000UL)),
+        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_Y * 1000UL)),
+        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_Z * 1000UL)),
+        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_E * 1000UL))
+      };
 
-			move_duration = distance * ((60 * F_CPU) / (target->F * 1000UL));
-			md_candidate = dda->delta[X] * ((60 * F_CPU) / (MAXIMUM_FEEDRATE_X * 1000UL));
-			if (md_candidate > move_duration)
-				move_duration = md_candidate;
-			md_candidate = dda->delta[Y] * ((60 * F_CPU) / (MAXIMUM_FEEDRATE_Y * 1000UL));
-			if (md_candidate > move_duration)
-				move_duration = md_candidate;
-			md_candidate = dda->delta[Z] * ((60 * F_CPU) / (MAXIMUM_FEEDRATE_Z * 1000UL));
-			if (md_candidate > move_duration)
-				move_duration = md_candidate;
-			md_candidate = dda->delta[E] * ((60 * F_CPU) / (MAXIMUM_FEEDRATE_E * 1000UL));
-			if (md_candidate > move_duration)
-				move_duration = md_candidate;
+      move_duration = distance * ((60 * F_CPU) / (target->F * 1000UL));
+      for (i=X; i <= AXIS_COUNT; i++) {
+        md_candidate = dda->delta[i] * max_tics_per_um[i];
+        if (md_candidate > move_duration)
+          move_duration = md_candidate;
+      }
 		#else
 			// pre-calculate move speed in millimeter microseconds per step minute for less math in interrupt context
 			// mm (distance) * 60000000 us/min / step (total_steps) = mm.us per step.min
@@ -264,23 +244,13 @@ void dda_create(DDA *dda, TARGET *target) {
     //       to calculate (maximum) move_duration for each axis, like done for
     //       ACCELERATION_TEMPORAL above. This should make re-calculating the
     //       allowed F easier.
-		c_limit = 0;
-		// check X axis
-		c_limit_calc = ((x_delta_um * 2400L) / dda->total_steps * (F_CPU / 40000) / MAXIMUM_FEEDRATE_X) << 8;
-		if (c_limit_calc > c_limit)
-			c_limit = c_limit_calc;
-		// check Y axis
-		c_limit_calc = ((y_delta_um * 2400L) / dda->total_steps * (F_CPU / 40000) / MAXIMUM_FEEDRATE_Y) << 8;
-		if (c_limit_calc > c_limit)
-			c_limit = c_limit_calc;
-		// check Z axis
-		c_limit_calc = ((z_delta_um * 2400L) / dda->total_steps * (F_CPU / 40000) / MAXIMUM_FEEDRATE_Z) << 8;
-		if (c_limit_calc > c_limit)
-			c_limit = c_limit_calc;
-		// check E axis
-		c_limit_calc = ((e_delta_um * 2400L) / dda->total_steps * (F_CPU / 40000) / MAXIMUM_FEEDRATE_E) << 8;
-		if (c_limit_calc > c_limit)
-			c_limit = c_limit_calc;
+    c_limit = 0;
+    for (i=X; i <= AXIS_COUNT; i++) {
+    // check each axis
+      c_limit_calc = ((delta_um[i] * 2400L) / dda->total_steps * (F_CPU / 40000) / maximum_feedrate[i]) << 8;
+      if (c_limit_calc > c_limit)
+        c_limit = c_limit_calc;
+    }
 
 		#ifdef ACCELERATION_REPRAP
 		// c is initial step time in IOclk ticks
@@ -378,31 +348,20 @@ void dda_create(DDA *dda, TARGET *target) {
 		#elif defined ACCELERATION_TEMPORAL
 			// TODO: limit speed of individual axes to MAXIMUM_FEEDRATE
 			// TODO: calculate acceleration/deceleration for each axis
-			dda->step_interval[X] = dda->step_interval[Y] = \
-				dda->step_interval[Z] = dda->step_interval[E] = 0xFFFFFFFF;
-			if (dda->delta[X])
-				dda->step_interval[X] = move_duration / dda->delta[X];
-			if (dda->delta[Y])
-				dda->step_interval[Y] = move_duration / dda->delta[Y];
-			if (dda->delta[Z])
-				dda->step_interval[Z] = move_duration / dda->delta[Z];
-			if (dda->delta[E])
-				dda->step_interval[E] = move_duration / dda->delta[E];
+      for (i = X; i < AXIS_COUNT; i++) {
+        dda->step_interval[i] = 0xFFFFFFFF;
+        if (dda->delta[i])
+          dda->step_interval[i] = move_duration / dda->delta[i];
+      }
 
-			dda->axis_to_step = 'x';
-			dda->c = dda->step_interval[X];
-			if (dda->step_interval[Y] < dda->c) {
-				dda->axis_to_step = 'y';
-				dda->c = dda->step_interval[Y];
-			}
-			if (dda->step_interval[Z] < dda->c) {
-				dda->axis_to_step = 'z';
-				dda->c = dda->step_interval[Z];
-			}
-			if (dda->step_interval[E] < dda->c) {
-				dda->axis_to_step = 'e';
-				dda->c = dda->step_interval[E];
-			}
+      dda->c = 0xFFFFFFFF;
+      dda->axis_to_step = X; // Safety value
+      for (i = X; i < AXIS_COUNT; i++) {
+        if (dda->step_interval[i] < dda->c) {
+          dda->axis_to_step = i;
+          dda->c = dda->step_interval[i];
+        }
+      }
 
 			dda->c <<= 8;
 		#else
@@ -420,6 +379,18 @@ void dda_create(DDA *dda, TARGET *target) {
   #ifdef LOOKAHEAD
     prev_dda = dda;
   #endif
+}
+
+// step the 'n' axis
+void do_step(enum axis_e n) {
+  if (n == X)
+    x_step();
+  else if (n == Y)
+    y_step();
+  else if (n == Z)
+    z_step();
+  else if (n == E)
+    e_step();
 }
 
 /*! Start a prepared DDA
@@ -495,77 +466,26 @@ void dda_start(DDA *dda) {
 	Finally we de-assert any asserted step pins.
 */
 void dda_step(DDA *dda) {
+  enum axis_e i;
+
 
 #if ! defined ACCELERATION_TEMPORAL
-	if (move_state.steps[X]) {
-		move_state.counter[X] -= dda->delta[X];
-		if (move_state.counter[X] < 0) {
-			x_step();
-			move_state.steps[X]--;
-			move_state.counter[X] += dda->total_steps;
-		}
-	}
+  for (i = X; i < AXIS_COUNT; i++) {
+    if (move_state.steps[i]) {
+      move_state.counter[i] -= dda->delta[i];
+      if (move_state.counter[i] < 0) {
+        do_step(i);
+        move_state.steps[i]--;
+        move_state.counter[i] += dda->total_steps;
+      }
+    }
+  }
 #else	// ACCELERATION_TEMPORAL
-	if (dda->axis_to_step == 'x') {
-		x_step();
-		move_state.steps[X]--;
-		move_state.time[X] += dda->step_interval[X];
-		move_state.all_time = move_state.time[X];
-	}
-#endif
-
-#if ! defined ACCELERATION_TEMPORAL
-	if (move_state.steps[Y]) {
-		move_state.counter[Y] -= dda->delta[Y];
-		if (move_state.counter[Y] < 0) {
-			y_step();
-			move_state.steps[Y]--;
-			move_state.counter[Y] += dda->total_steps;
-		}
-	}
-#else	// ACCELERATION_TEMPORAL
-	if (dda->axis_to_step == 'y') {
-		y_step();
-		move_state.steps[Y]--;
-		move_state.time[Y] += dda->step_interval[Y];
-		move_state.all_time = move_state.time[Y];
-	}
-#endif
-
-#if ! defined ACCELERATION_TEMPORAL
-	if (move_state.steps[Z]) {
-		move_state.counter[Z] -= dda->delta[Z];
-		if (move_state.counter[Z] < 0) {
-			z_step();
-			move_state.steps[Z]--;
-			move_state.counter[Z] += dda->total_steps;
-		}
-	}
-#else	// ACCELERATION_TEMPORAL
-	if (dda->axis_to_step == 'z') {
-		z_step();
-		move_state.steps[Z]--;
-		move_state.time[Z] += dda->step_interval[Z];
-		move_state.all_time = move_state.time[Z];
-	}
-#endif
-
-#if ! defined ACCELERATION_TEMPORAL
-	if (move_state.steps[E]) {
-		move_state.counter[E] -= dda->delta[E];
-		if (move_state.counter[E] < 0) {
-			e_step();
-			move_state.steps[E]--;
-			move_state.counter[E] += dda->total_steps;
-		}
-	}
-#else	// ACCELERATION_TEMPORAL
-	if (dda->axis_to_step == 'e') {
-		e_step();
-		move_state.steps[E]--;
-		move_state.time[E] += dda->step_interval[E];
-		move_state.all_time = move_state.time[E];
-	}
+  i = dda->axis_to_step;
+  do_step(i);
+  move_state.steps[i]--;
+  move_state.time[i] += dda->step_interval[i];
+  move_state.all_time = move_state.time[i];
 #endif
 
 	#if STEP_INTERRUPT_INTERRUPTIBLE && ! defined ACCELERATION_RAMPING
@@ -621,32 +541,15 @@ void dda_step(DDA *dda) {
 		uint32_t c_candidate;
 
 		dda->c = 0xFFFFFFFF;
-		if (move_state.steps[X]) {
-			c_candidate = move_state.time[X] + dda->step_interval[X] - move_state.all_time;
-			dda->axis_to_step = 'x';
-			dda->c = c_candidate;
-		}
-		if (move_state.steps[Y]) {
-			c_candidate = move_state.time[Y] + dda->step_interval[Y] - move_state.all_time;
-			if (c_candidate < dda->c) {
-				dda->axis_to_step = 'y';
-				dda->c = c_candidate;
-			}
-		}
-		if (move_state.steps[Z]) {
-			c_candidate = move_state.time[Z] + dda->step_interval[Z] - move_state.all_time;
-			if (c_candidate < dda->c) {
-				dda->axis_to_step = 'z';
-				dda->c = c_candidate;
-			}
-		}
-		if (move_state.steps[E]) {
-			c_candidate = move_state.time[E] + dda->step_interval[E] - move_state.all_time;
-			if (c_candidate < dda->c) {
-				dda->axis_to_step = 'e';
-				dda->c = c_candidate;
-			}
-		}
+    for (i = X; i < AXIS_COUNT; i++) {
+      if (move_state.steps[i]) {
+        c_candidate = move_state.time[i] + dda->step_interval[i] - move_state.all_time;
+        if (c_candidate < dda->c) {
+          dda->axis_to_step = i;
+          dda->c = c_candidate;
+        }
+      }
+    }
 		dda->c <<= 8;
 	#endif
 
@@ -875,50 +778,56 @@ void dda_clock() {
 /// update global current_position struct
 void update_current_position() {
 	DDA *dda = &movebuffer[mb_tail];
+  enum axis_e i;
 
-	if (queue_empty()) {
-		current_position.axis[X] = startpoint.axis[X];
-		current_position.axis[Y] = startpoint.axis[Y];
-		current_position.axis[Z] = startpoint.axis[Z];
-		current_position.axis[E] = startpoint.axis[E];
-	}
-	else if (dda->live) {
-		if (dda->x_direction)
-			// (STEPS_PER_M_X / 1000) is a bit inaccurate for low STEPS_PER_M numbers
-			current_position.axis[X] = dda->endpoint.axis[X] -
-			                     // should be: move_state.steps[X] * 1000000 / STEPS_PER_M_X)
-			                     // but steps[X] can be like 1000000 already, so we'd overflow
-			                     move_state.steps[X] * 1000 / ((STEPS_PER_M_X + 500) / 1000);
-		else
-			current_position.axis[X] = dda->endpoint.axis[X] +
-			                     move_state.steps[X] * 1000 / ((STEPS_PER_M_X + 500) / 1000);
+  /* Use smaller values to adjust to avoid overflow in later calculations */
+  // (STEPS_PER_M_X / 1000) is a bit inaccurate for low STEPS_PER_M numbers
+  static const axes_uint32_t steps_per_cm PROGMEM = {
+    ((STEPS_PER_M_X + 500) / 1000),
+    ((STEPS_PER_M_Y + 500) / 1000),
+    ((STEPS_PER_M_Z + 500) / 1000),
+    ((STEPS_PER_M_E + 500) / 1000)
+  };
 
-		if (dda->y_direction)
-			current_position.axis[Y] = dda->endpoint.axis[Y] -
-			                     move_state.steps[Y] * 1000 / ((STEPS_PER_M_Y + 500) / 1000);
-		else
-			current_position.axis[Y] = dda->endpoint.axis[Y] +
-			                     move_state.steps[Y] * 1000 / ((STEPS_PER_M_Y + 500) / 1000);
+  if (queue_empty()) {
+    for (i=X; i < AXIS_COUNT; i++) {
+      current_position.axis[i] = startpoint.axis[i];
+    }
+  }
+  else if (dda->live) {
+    for (i=X; i < AXIS_COUNT; i++) {
+      if (get_direction(dda, i))
+        current_position.axis[i] = dda->endpoint.axis[i] -
+                                   move_state.steps[i] * 1000 / steps_per_cm[i];
+      else
+        current_position.axis[i] = dda->endpoint.axis[i] +
+                                   move_state.steps[i] * 1000 / steps_per_cm[i];
+    }
+    if (dda->endpoint.e_relative)
+      current_position.axis[E] = move_state.steps[E] * 1000 / steps_per_cm[E];
+    // current_position.F is updated in dda_start()
+  }
+}
 
-		if (dda->z_direction)
-			current_position.axis[Z] = dda->endpoint.axis[Z] -
-			                     move_state.steps[Z] * 1000 / ((STEPS_PER_M_Z + 500) / 1000);
-		else
-			current_position.axis[Z] = dda->endpoint.axis[Z] +
-			                     move_state.steps[Z] * 1000 / ((STEPS_PER_M_Z + 500) / 1000);
+int get_direction(DDA *dda, enum axis_e n) {
+  if (n == X)
+    return dda->x_direction;
+  if (n == Y)
+    return dda->y_direction;
+  if (n == Z)
+    return dda->z_direction;
+  if (n == E)
+    return dda->e_direction;
+  return 0;
+}
 
-		if (dda->endpoint.e_relative) {
-			current_position.axis[E] = move_state.steps[E] * 1000 / ((STEPS_PER_M_E + 500) / 1000);
-		}
-		else {
-			if (dda->e_direction)
-				current_position.axis[E] = dda->endpoint.axis[E] -
-				                     move_state.steps[E] * 1000 / ((STEPS_PER_M_E + 500) / 1000);
-			else
-				current_position.axis[E] = dda->endpoint.axis[E] +
-				                     move_state.steps[E] * 1000 / ((STEPS_PER_M_E + 500) / 1000);
-		}
-
-		// current_position.F is updated in dda_start()
-	}
+void set_direction(DDA *dda, enum axis_e n, int dir) {
+  if (n == X)
+    dda->x_direction = dir;
+  else if (n == Y)
+    dda->y_direction = dir;
+  else if (n == Z)
+    dda->z_direction = dir;
+  else if (n == E)
+    dda->e_direction = dir;
 }
