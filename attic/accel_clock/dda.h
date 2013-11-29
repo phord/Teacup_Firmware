@@ -72,7 +72,15 @@ typedef struct {
 	#ifdef ACCELERATION_RAMPING
 	/// counts actual steps done
 	uint32_t					step_no;
+	/// time until next step
+	uint32_t					c;
+	/// tracking variable
+	int32_t						n;
 	#endif
+  #ifdef ACCELERATION_CLOCK
+  uint16_t          time_current;
+  uint8_t           ticks_since_step;
+  #endif
 	#ifdef ACCELERATION_TEMPORAL
 	uint32_t					x_time; ///< time of the last x step
 	uint32_t					y_time; ///< time of the last y step
@@ -81,8 +89,7 @@ typedef struct {
 	uint32_t					all_time; ///< time of the last step of any axis
 	#endif
 
-	/// Endstop handling.
-  uint8_t endstop_stop; ///< Stop due to endstop trigger
+	/// Endstop debouncing
 	uint8_t debounce_count_xmin, debounce_count_ymin, debounce_count_zmin;
 	uint8_t debounce_count_xmax, debounce_count_ymax, debounce_count_zmax;
 } MOVE_STATE;
@@ -103,7 +110,6 @@ typedef struct {
 			// status fields
 			uint8_t						nullmove			:1; ///< bool: no axes move, maybe we wait for temperatures or change speed
 			uint8_t						live					:1; ///< bool: this DDA is running and still has steps to do
-      uint8_t           done          :1; ///< bool: this DDA is done.
 			#ifdef ACCELERATION_REPRAP
 			uint8_t						accel					:1; ///< bool: speed changes during this move, run accel code
 			#endif
@@ -117,7 +123,7 @@ typedef struct {
 			uint8_t						z_direction		:1; ///< direction flag for Z axis
 			uint8_t						e_direction		:1; ///< direction flag for E axis
 		};
-    uint16_t            allflags; ///< used for clearing all flags
+		uint8_t							allflags;	///< used for clearing all flags
 	};
 
 	// distances
@@ -133,10 +139,9 @@ typedef struct {
 
 	#ifdef ACCELERATION_REPRAP
 	uint32_t					end_c; ///< time between 2nd last step and last step
+	int32_t						n; ///< precalculated step time offset variable. At every step we calculate \f$c = c - (2 c / n)\f$; \f$n+=4\f$. See http://www.embedded.com/columns/technicalinsights/56800129?printable=true for full description
 	#endif
 	#ifdef ACCELERATION_RAMPING
-  /// precalculated step time offset variable
-  int32_t           n;
 	/// number of steps accelerating
 	uint32_t					rampup_steps;
 	/// number of last step before decelerating
@@ -147,20 +152,27 @@ typedef struct {
   // With the look-ahead functionality, it is possible to retain physical
   // movement between G1 moves. These variables keep track of the entry and
   // exit speeds between moves.
-  uint32_t          crossF;
   uint32_t          F_start;
-  uint32_t          start_steps; ///< steps to reach F_start
   uint32_t          F_end;
   // Displacement vector, in um, based between the difference of the starting
   // point and the target. Required to obtain the jerk between 2 moves.
   // Note: x_delta and co are in steps, not um.
-  VECTOR4D          delta_um;
+  VECTOR4D          delta;
   // Number the moves to be able to test at the end of lookahead if the moves
   // are the same. Note: we do not need a lot of granularity here: more than
   // MOVEBUFFER_SIZE is already enough.
   uint8_t           id;
   #endif
 	#endif
+  #ifdef ACCELERATION_CLOCK
+  uint16_t          F_start;
+  uint16_t          F_end;
+  uint16_t          F_max;
+  uint16_t          time_accel; ///< in clock ticks (1ms or 2ms)
+  uint16_t          time_decel; ///< in clock ticks (1ms or 2ms)
+  uint16_t          time_total; ///< in clock ticks (1ms or 2ms)
+  uint32_t          f_to_c;
+  #endif
 	#ifdef ACCELERATION_TEMPORAL
 	uint32_t					x_step_interval; ///< time between steps on X axis
 	uint32_t					y_step_interval; ///< time between steps on Y axis
@@ -198,7 +210,7 @@ void dda_init(void);
 void dda_new_startpoint(void);
 
 // create a DDA
-void dda_create(DDA *dda, TARGET *target);
+void dda_create(DDA *dda, TARGET *target, DDA *prev_dda);
 
 // start a created DDA (called from timer interrupt)
 void dda_start(DDA *dda)																						__attribute__ ((hot));

@@ -3,12 +3,11 @@
 
 #include "config.h"
 #include	<stdint.h>
-
-#ifndef SIMULATION
-	#include	<avr/io.h>
-	#include	<avr/pgmspace.h>
+#ifndef SIMULATOR
+#include	<avr/io.h>
+#include	<avr/pgmspace.h>
 #endif
-#include	"simulation.h"
+#include "simulator.h"
 
 #ifdef USB_SERIAL
   #include "usb_serial.h"

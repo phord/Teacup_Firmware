@@ -23,10 +23,10 @@
 			M115
 			ctrl+d \endcode
 */
-#ifndef SIMULATION
-	#include	<avr/io.h>
-	#include	<avr/interrupt.h>
-    #include	"arduino.h"
+
+#ifndef SIMULATOR
+#include	<avr/io.h>
+#include	<avr/interrupt.h>
 #endif
 
 #include	"config.h"
@@ -47,7 +47,15 @@
 #include	"pinio.h"
 #include	"clock.h"
 #include	"intercom.h"
-#include	"simulation.h"
+#include "simulator.h"
+
+#ifdef SIMINFO
+  #include "../simulavr/src/simulavr_info.h"
+  SIMINFO_DEVICE("atmega644");
+  SIMINFO_CPUFREQUENCY(F_CPU);
+  SIMINFO_SERIAL_IN("D0", "-", BAUD);
+  SIMINFO_SERIAL_OUT("D1", "-", BAUD);
+#endif
 
 /// initialise all I/O - set pins as input or output, turn off unused subsystems, etc
 void io_init(void) {
@@ -230,8 +238,14 @@ void init(void) {
 /// this is where it all starts, and ends
 ///
 /// just run init(), then run an endless loop where we pass characters from the serial RX buffer to gcode_parse_char() and check the clocks
+#ifdef SIMULATOR
+int main (int argc, char** argv)
+{
+  sim_start(argc, argv);
+#else
 int main (void)
 {
+#endif
 	init();
 
 	// main loop

@@ -2,10 +2,10 @@
 #define	_TIMER_H
 
 #include	<stdint.h>
-#ifndef SIMULATION
-	#include	<avr/io.h>
+#ifndef SIMULATOR
+#include	<avr/io.h>
 #endif
-#include "simulation.h"
+#include "simulator.h"
 
 // time-related constants
 #define	US	* (F_CPU / 1000000)

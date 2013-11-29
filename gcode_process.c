@@ -5,8 +5,8 @@
 */
 
 #include	<string.h>
-#ifndef SIMULATION
-    #include	<avr/interrupt.h>
+#ifndef SIMULATOR
+#include	<avr/interrupt.h>
 #endif
 
 #include	"gcode_parse.h"
@@ -633,29 +633,40 @@ void process_gcode_command() {
         power_on();
         endstops_on();
         delay_ms(10); // allow the signal to stabilize
-        #if defined(X_MIN_PIN)
-          sersendf_P(PSTR("x_min:%d "), x_min());
-        #endif
-        #if defined(X_MAX_PIN)
-          sersendf_P(PSTR("x_max:%d "), x_max());
-        #endif
-        #if defined(Y_MIN_PIN)
-          sersendf_P(PSTR("y_min:%d "), y_min());
-        #endif
-        #if defined(Y_MAX_PIN)
-          sersendf_P(PSTR("y_max:%d "), y_max());
-        #endif
-        #if defined(Z_MIN_PIN)
-          sersendf_P(PSTR("z_min:%d "), z_min());
-        #endif
-        #if defined(Z_MAX_PIN)
-          sersendf_P(PSTR("z_max:%d "), z_max());
-        #endif
-        #if ! (defined(X_MIN_PIN) || defined(X_MAX_PIN) || \
-               defined(Y_MIN_PIN) || defined(Y_MAX_PIN) || \
-               defined(Z_MIN_PIN) || defined(Z_MAX_PIN))
-          sersendf_P(PSTR("no endstops defined"));
-        #endif
+        {
+          const char* const open = PSTR("open ");
+          const char* const triggered = PSTR("triggered ");
+
+          #if defined(X_MIN_PIN)
+            sersendf_P(PSTR("x_min:"));
+            x_min() ? sersendf_P(triggered) : sersendf_P(open);
+          #endif
+          #if defined(X_MAX_PIN)
+            sersendf_P(PSTR("x_max:"));
+            x_max() ? sersendf_P(triggered) : sersendf_P(open);
+          #endif
+          #if defined(Y_MIN_PIN)
+            sersendf_P(PSTR("y_min:"));
+            y_min() ? sersendf_P(triggered) : sersendf_P(open);
+          #endif
+          #if defined(Y_MAX_PIN)
+            sersendf_P(PSTR("y_max:"));
+            y_max() ? sersendf_P(triggered) : sersendf_P(open);
+          #endif
+          #if defined(Z_MIN_PIN)
+            sersendf_P(PSTR("z_min:"));
+            z_min() ? sersendf_P(triggered) : sersendf_P(open);
+          #endif
+          #if defined(Z_MAX_PIN)
+            sersendf_P(PSTR("z_max:"));
+            z_max() ? sersendf_P(triggered) : sersendf_P(open);
+          #endif
+          #if ! (defined(X_MIN_PIN) || defined(X_MAX_PIN) || \
+                 defined(Y_MIN_PIN) || defined(Y_MAX_PIN) || \
+                 defined(Z_MIN_PIN) || defined(Z_MAX_PIN))
+            sersendf_P(PSTR("no endstops defined"));
+          #endif
+        }
         endstops_off();
         break;
 
@@ -717,9 +728,11 @@ void process_gcode_command() {
 				//? --- M136: PRINT PID settings to host ---
 				//? Undocumented.
 				//? This comand is only available in DEBUG builds.
+        #ifdef HEATER_EXTRUDER
 				if ( ! next_target.seen_P)
 					next_target.P = HEATER_EXTRUDER;
 				heater_print(next_target.P);
+        #endif
 				break;
 			#endif
 

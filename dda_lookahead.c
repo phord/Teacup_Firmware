@@ -11,7 +11,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <math.h>
+#ifndef SIMULATOR
 #include <avr/interrupt.h>
+#endif
 
 #include "dda_maths.h"
 #include "dda.h"
@@ -57,9 +59,8 @@ uint32_t dda_steps_to_velocity(uint32_t steps) {
 }
 
 /**
- * Determine the 'jerk' between 2 2D vectors and their speeds. The jerk can be used to obtain an
- * acceptable speed for changing directions between moves.
- * Vector delta is in um, speed is in mm/min.
+ * Determine the 'jerk' between 2 2D vectors and their speeds. The jerk can be
+ * used to obtain an acceptable speed for changing directions between moves.
  * @param x1 x component of first vector
  * @param y1 y component of first vector
  * @param F1 feed rate of first move
@@ -97,7 +98,6 @@ int dda_jerk_size_2d_real(int32_t x1, int32_t y1, uint32_t F1, int32_t x2, int32
 /**
  * Determine the 'jerk' for 2 1D vectors and their speeds. The jerk can be used to obtain an
  * acceptable speed for changing directions between moves.
- * Vector delta is in um, speed is in mm/min.
  * @param x component of 1d vector - used to determine if we go back or forward
  * @param F feed rate
  */
@@ -120,7 +120,6 @@ int dda_jerk_size_1d(int32_t x1, uint32_t F1, int32_t x2, uint32_t F2) {
  * acceptable speed for changing directions between moves.
  * Instead of using 2 axis at once, consider the jerk for each axis individually and take the
  * upper limit between both. This ensures that each axis does not changes speed too fast.
- * Vector delta is in um, speed is in mm/min.
  * @param x1 x component of first vector
  * @param y1 y component of first vector
  * @param F1 feed rate of first move
@@ -177,7 +176,7 @@ void dda_join_moves(DDA *prev, DDA *current) {
   // until then, we do not want to touch the current move settings.
   // Note: we assume 'current' will not be dispatched while this function runs, so we do not to
   // back up the move settings: they will remain constant.
-  uint32_t this_F_start, this_rampup, this_rampdown;
+  uint32_t this_F_start, this_start, this_rampup, this_rampdown;
   int32_t jerk, jerk_e;       // Expresses the forces if we would change directions at full speed
   static uint32_t la_cnt = 0;     // Counter: how many moves did we join?
   #ifdef LOOKAHEAD_DEBUG
@@ -185,24 +184,29 @@ void dda_join_moves(DDA *prev, DDA *current) {
   moveno++;
   #endif
 
-  // Sanity: if the previous move or this one has no actual movement, bail now. (e.g. G1 F1500)
-  if(prev->delta.X==0 && prev->delta.Y==0 && prev->delta.Z==0 && prev->delta.E==0) return;
-  if(current->delta.X==0 && current->delta.Y==0 && current->delta.Z==0 && current->delta.E==0) return;
+  // Bail out if there's nothing to join (e.g. G1 F1500).
+  if ( ! prev || prev->nullmove)
+    return;
 
-  serprintf(PSTR("Current Delta: %ld,%ld,%ld E:%ld Live:%d\r\n"), current->delta.X, current->delta.Y, current->delta.Z, current->delta.E, current->live);
-  serprintf(PSTR("Prev    Delta: %ld,%ld,%ld E:%ld Live:%d\r\n"), prev->delta.X, prev->delta.Y, prev->delta.Z, prev->delta.E, prev->live);
+  serprintf(PSTR("Current Delta: %ld,%ld,%ld E:%ld Live:%d\r\n"),
+            current->delta_um.X, current->delta_um.Y, current->delta_um.Z,
+            current->delta_um.E, current->live);
+  serprintf(PSTR("Prev    Delta: %ld,%ld,%ld E:%ld Live:%d\r\n"),
+            prev->delta_um.X, prev->delta_um.Y, prev->delta_um.Z,
+            prev->delta_um.E, prev->live);
 
   // Look-ahead: attempt to join moves into smooth movements
   // Note: moves are only modified after the calculations are complete.
   // Only prepare for look-ahead if we have 2 available moves to
   // join and the Z axis is unused (for now, Z axis moves are NOT joined).
-  if(prev!=NULL && prev->live==0 && prev->delta.Z==current->delta.Z) {
+  if (prev->live == 0 && prev->delta_um.Z == current->delta_um.Z) {
     // Calculate the jerk if the previous move and this move would be joined
     // together at full speed.
-    jerk = dda_jerk_size_2d(prev->delta.X, prev->delta.Y, prev->endpoint.F,
-        current->delta.X, current->delta.Y, current->endpoint.F);
+    jerk = dda_jerk_size_2d(prev->delta_um.X, prev->delta_um.Y, prev->endpoint.F,
+                  current->delta_um.X, current->delta_um.Y, current->endpoint.F);
     serprintf(PSTR("Jerk: %lu\r\n"), jerk);
-    jerk_e = dda_jerk_size_1d(prev->delta.E, prev->endpoint.F, current->delta.E, current->endpoint.F);
+    jerk_e = dda_jerk_size_1d(prev->delta_um.E, prev->endpoint.F,
+                              current->delta_um.E, current->endpoint.F);
     serprintf(PSTR("Jerk_e: %lu\r\n"), jerk_e);
   } else {
     // Move already executing or Z moved: abort the join
@@ -210,7 +214,7 @@ void dda_join_moves(DDA *prev, DDA *current) {
   }
 
   // Make sure we have 2 moves and the previous move is not already active
-  if(prev!=NULL && prev->live==0) {
+  if (prev->live == 0) {
     // Perform an atomic copy to preserve volatile parameters during the calculations
     ATOMIC_START
       prev_id = prev->id;
@@ -400,6 +404,7 @@ void dda_join_moves(DDA *prev, DDA *current) {
     this_rampup = up;
     this_rampdown = current->total_steps - down;
     this_F_start = crossF;
+    this_start = ACCELERATE_RAMP_LEN(this_F_start);
     serprintf(PSTR("Actual crossing speed: %lu\r\n"), crossF);
 
     // Potential reverse processing:
@@ -468,6 +473,7 @@ void dda_join_moves(DDA *prev, DDA *current) {
         current->rampdown_steps = this_rampdown;
         current->F_end = 0;
         current->F_start = this_F_start;
+        current->start_steps = this_start;
         la_cnt++;
       } else
         timeout = 1;

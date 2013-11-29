@@ -7,9 +7,7 @@
 #include	<string.h>
 #include	<stdlib.h>
 #include	<math.h>
-#ifndef SIMULATOR
 #include	<avr/interrupt.h>
-#endif
 
 #include	"dda_maths.h"
 #include	"dda_lookahead.h"
@@ -27,9 +25,11 @@
 #ifdef	DC_EXTRUDER
 	#include	"heater.h"
 #endif
+#include	"delay.h"
 
-/* 32-bit-specific abs fn coerces argument to 32-bit signed value first */
-#define abs32(x) labs((int32_t)(x))
+#if defined ACCELERATION_RAMPING && defined ACCELERATION_CLOCK
+  #error Cant define ACCELERATION_RAMPING and ACCELERATION_CLOCK at the same time.
+#endif
 
 /*
 	position tracking
@@ -58,6 +58,11 @@ void dda_init(void) {
 	// set up default feedrate
 	if (startpoint.F == 0)
 		startpoint.F = next_target.target.F = SEARCH_FEEDRATE_Z;
+
+	#ifdef ACCELERATION_RAMPING
+		move_state.n = 1;
+		move_state.c = ((uint32_t)((double)F_CPU / sqrt((double)(STEPS_PER_M_X * ACCELERATION / 1000.)))) << 8;
+	#endif
 }
 
 /*! Distribute a new startpoint to DDA's internal structures without any movement.
@@ -83,20 +88,13 @@ void dda_new_startpoint(void) {
 
 	This algorithm is probably the main limiting factor to print speed in terms of firmware limitations
 */
-void dda_create(DDA *dda, TARGET *target) {
+void dda_create(DDA *dda, TARGET *target, DDA *prev_dda) {
 	uint32_t	steps, x_delta_um, y_delta_um, z_delta_um, e_delta_um;
 	uint32_t	distance, c_limit, c_limit_calc;
   #ifdef LOOKAHEAD
   // Number the moves to identify them; allowed to overflow.
   static uint8_t idcnt = 0;
-  static DDA* prev_dda = NULL;
-
-  if ((prev_dda && prev_dda->done) || dda->waitfor_temp)
-    prev_dda = NULL;
   #endif
-
-  if (dda->waitfor_temp)
-    return;
 
 	// initialise DDA to a known state
 	dda->allflags = 0;
@@ -119,18 +117,18 @@ void dda_create(DDA *dda, TARGET *target) {
 // TODO TODO: We should really make up a loop for all axes.
 //            Think of what happens when a sixth axis (multi colour extruder)
 //            appears?
-	x_delta_um = (uint32_t)abs32(target->X - startpoint.X);
-	y_delta_um = (uint32_t)abs32(target->Y - startpoint.Y);
-	z_delta_um = (uint32_t)abs32(target->Z - startpoint.Z);
+	x_delta_um = (uint32_t)labs(target->X - startpoint.X);
+	y_delta_um = (uint32_t)labs(target->Y - startpoint.Y);
+	z_delta_um = (uint32_t)labs(target->Z - startpoint.Z);
 
 	steps = um_to_steps_x(target->X);
-	dda->x_delta = abs32(steps - startpoint_steps.X);
+	dda->x_delta = labs(steps - startpoint_steps.X);
 	startpoint_steps.X = steps;
 	steps = um_to_steps_y(target->Y);
-	dda->y_delta = abs32(steps - startpoint_steps.Y);
+	dda->y_delta = labs(steps - startpoint_steps.Y);
 	startpoint_steps.Y = steps;
 	steps = um_to_steps_z(target->Z);
-	dda->z_delta = abs32(steps - startpoint_steps.Z);
+	dda->z_delta = labs(steps - startpoint_steps.Z);
 	startpoint_steps.Z = steps;
 
 	dda->x_direction = (target->X >= startpoint.X)?1:0;
@@ -138,24 +136,24 @@ void dda_create(DDA *dda, TARGET *target) {
 	dda->z_direction = (target->Z >= startpoint.Z)?1:0;
 
 	if (target->e_relative) {
-		e_delta_um = abs32(target->E);
-		dda->e_delta = abs32(um_to_steps_e(target->E));
+		e_delta_um = labs(target->E);
+		dda->e_delta = labs(um_to_steps_e(target->E));
 		dda->e_direction = (target->E >= 0)?1:0;
 	}
 	else {
-		e_delta_um = (uint32_t)abs32(target->E - startpoint.E);
+		e_delta_um = (uint32_t)labs(target->E - startpoint.E);
 		steps = um_to_steps_e(target->E);
-		dda->e_delta = abs32(steps - startpoint_steps.E);
+		dda->e_delta = labs(steps - startpoint_steps.E);
 		startpoint_steps.E = steps;
 		dda->e_direction = (target->E >= startpoint.E)?1:0;
 	}
 
   #ifdef LOOKAHEAD
   // Also displacements in micrometers, but for the lookahead alogrithms.
-  dda->delta_um.X = target->X - startpoint.X;
-  dda->delta_um.Y = target->Y - startpoint.Y;
-  dda->delta_um.Z = target->Z - startpoint.Z;
-  dda->delta_um.E = target->e_relative ? target->E : target->E - startpoint.E;
+  dda->delta.X = target->X - startpoint.X;
+  dda->delta.Y = target->Y - startpoint.Y;
+  dda->delta.Z = target->Z - startpoint.Z;
+  dda->delta.E = target->e_relative ? target->E : target->E - startpoint.E;
   #endif
 
 	if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
@@ -330,9 +328,7 @@ void dda_create(DDA *dda, TARGET *target) {
                  calculation. Make sure this does not happen.
          Note 4: Anyone trying to run their machine at 65535 mm/min > 1m/s is nuts
        */
-      if (target->F > 65534)
-        target->F = 65534;
-
+      if (target->F > 65534) target->F = 65534;
       // Note: this is inaccurate for several reasons:
       // - target->F isn't reverse-calculated from c_limit, so speed
       //   reductions due to slow axes are ignored.
@@ -342,13 +338,12 @@ void dda_create(DDA *dda, TARGET *target) {
       // equal or larger than the number of steps required for acceleration,
       // so we can use it when also limiting max speed according to c_limit.
       dda->rampup_steps = ACCELERATE_RAMP_LEN(target->F);
-
       // Quick hack: we do not do Z move joins as jerk on the Z axis is undesirable;
       // as the ramp length is calculated for XY, its incorrect for Z: apply the original
       // 'fix' to simply specify a large enough ramp for any speed.
-//      if (x_delta_um == 0 && y_delta_um == 0) {
-        dda->rampup_steps = 1000000; // replace mis-calculation by a safe value
-//      }
+      if (x_delta_um == 0 && y_delta_um == 0) {
+        dda->rampup_steps = 100000; // replace mis-calculation by a safe value
+      }
 
       if (dda->rampup_steps > dda->total_steps / 2)
         dda->rampup_steps = dda->total_steps / 2;
@@ -356,17 +351,82 @@ void dda_create(DDA *dda, TARGET *target) {
 
       #ifdef LOOKAHEAD
         dda_join_moves(prev_dda, dda);
-        dda->n = dda->start_steps;
-        if (dda->n == 0)
-          dda->c = C0;
-        else
-          dda->c = ((C0 >> 8) * int_inv_sqrt(dda->n)) >> 5;
-        if (dda->c < dda->c_min)
-          dda->c = dda->c_min;
-      #else
-        dda->n = 0;
-        dda->c = C0;
       #endif
+    #elif defined ACCELERATION_CLOCK
+      uint16_t candidate;
+
+      // Total time of the unaccelerated move.
+      // 1 um/ms = 1 mm/s = 60 mm/min
+      dda->time_total = distance * (60 / TICK_TIME_MS) / target->F;
+
+      // To avoid overspeeding an axis, movement takes at least as
+      // long as the slowest axis requires.
+      candidate = x_delta_um * (60 / TICK_TIME_MS) / MAXIMUM_FEEDRATE_X;
+      if (candidate > dda->time_total)
+        dda->time_total = candidate;
+      candidate = y_delta_um * (60 / TICK_TIME_MS) / MAXIMUM_FEEDRATE_Y;
+      if (candidate > dda->time_total)
+        dda->time_total = candidate;
+      candidate = z_delta_um * (60 / TICK_TIME_MS) / MAXIMUM_FEEDRATE_Z;
+      if (candidate > dda->time_total)
+        dda->time_total = candidate;
+      candidate = e_delta_um * (60 / TICK_TIME_MS) / MAXIMUM_FEEDRATE_E;
+      if (candidate > dda->time_total)
+        dda->time_total = candidate;
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("time total %u\n"), dda->time_total);
+
+      // Re-calculate speeds, as they might have changed.
+      dda->F_start = 0;
+      dda->F_end = 0;
+      dda->F_max = distance * (60 / TICK_TIME_MS) / dda->time_total;
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("corrected F_max %u\n"), dda->F_max);
+
+      // Time in clock ticks required for acceleration.
+      dda->time_accel = ((uint32_t)(dda->F_max - dda->F_start)) *
+                        ((uint32_t)(1000 / TICK_TIME_MS)) /
+                        ((uint32_t)(60 * ACCELERATION));
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("time accel %u\n"), dda->time_accel);
+
+      // Time in clock ticks required for deceleration.
+      dda->time_decel = ((uint32_t)(dda->F_max - dda->F_end)) *
+                        ((uint32_t)(1000 / TICK_TIME_MS)) /
+                        ((uint32_t)(60 * ACCELERATION));
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("time decel %u\n"), dda->time_decel);
+
+      // Add time required for acceleration / deceleration.
+      dda->time_total += dda->time_accel / 2 + dda->time_decel / 2;
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("time total w. accel %u\n"), dda->time_total);
+      dda->time_decel = dda->time_total - dda->time_decel;
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("time decel2 %u\n"), dda->time_decel);
+
+      // UGLY HACK: to compensate for inaccurate ac- and deceleration
+      //            time calculations, add a margin here:
+//      dda->time_decel += (dda->time_accel >> 3);
+//sersendf_P(PSTR("time decel hacked %u\n"), dda->time_decel); delay_ms(10);
+
+      // This is the ratio between F (in mm/min) and c (in CPU clock ticks)
+      // and is constant during the entire move, even on curved movements.
+      // Essentially, it's the step rate of the fastest stepping stepper
+      // of the entire move.
+      // For linear movements it's simple:
+      dda->f_to_c = (distance * 2400L) / dda->total_steps * (F_CPU / 40000) << 8;
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("f_to_c %lu\n"), dda->f_to_c);
+
+      // Initial step delays. As we can't start with zero speed, advance
+      // all calculations by half a clock tick.
+      // v = a * t; c = 1 / v;
+// Don't forget F_start!
+      dda->c = dda->f_to_c / ((uint32_t)ACCELERATION * 60UL * TICK_TIME_MS / 1000UL);
+      
+sersendf_P(PSTR("c_min new %lu\n"), dda->f_to_c / target->F); delay_ms(10);
+sersendf_P(PSTR("c_min trad %lu\n"), (move_duration / target->F) << 8); delay_ms(10);
 
 		#elif defined ACCELERATION_TEMPORAL
 			// TODO: limit speed of individual axes to MAXIMUM_FEEDRATE
@@ -410,9 +470,6 @@ void dda_create(DDA *dda, TARGET *target) {
 
 	// next dda starts where we finish
 	memcpy(&startpoint, target, sizeof(TARGET));
-  #ifdef LOOKAHEAD
-    prev_dda = dda;
-  #endif
 }
 
 /*! Start a prepared DDA
@@ -451,7 +508,6 @@ void dda_start(DDA *dda) {
 		move_state.x_counter = move_state.y_counter = move_state.z_counter = \
 			move_state.e_counter = -(dda->total_steps >> 1);
 		memcpy(&move_state.x_steps, &dda->x_delta, sizeof(uint32_t) * 4);
-    move_state.endstop_stop = 0;
 		#ifdef ACCELERATION_RAMPING
 			move_state.step_no = 0;
 		#endif
@@ -464,7 +520,18 @@ void dda_start(DDA *dda) {
 		dda->live = 1;
 
 		// set timeout for first step
-    setTimer(dda->c >> 8);
+		#ifdef ACCELERATION_RAMPING
+		if (dda->c_min > move_state.c) // can be true when look-ahead removed all deceleration steps
+			setTimer(dda->c_min >> 8);
+		else
+			setTimer(move_state.c >> 8);
+		#else
+      #ifdef ACCELERATION_CLOCK
+      move_state.time_current = 0;
+      move_state.ticks_since_step = 0;
+      #endif
+		setTimer(dda->c >> 8);
+		#endif
 	}
 	// else just a speed change, keep dda->live = 0
 
@@ -511,7 +578,7 @@ void dda_step(DDA *dda) {
 		}
 	}
 #else	// ACCELERATION_TEMPORAL
-	if (dda->axis_to_step == 'y') {
+	if ((dda->axis_to_step == 'y') && ! endstop_stop) {
 		y_step();
 		move_state.y_steps--;
 		move_state.y_time += dda->y_step_interval;
@@ -555,7 +622,7 @@ void dda_step(DDA *dda) {
 	}
 #endif
 
-	#if STEP_INTERRUPT_INTERRUPTIBLE && ! defined ACCELERATION_RAMPING
+  #if defined STEP_INTERRUPT_INTERRUPTIBLE && ! defined ACCELERATION_CLOCK
 		// Since we have sent steps to all the motors that will be stepping
 		// and the rest of this function isn't so time critical, this interrupt
 		// can now be interruptible by other interrupts.
@@ -591,9 +658,59 @@ void dda_step(DDA *dda) {
 			// else we are already at target speed
 		}
 	#endif
-
 	#ifdef ACCELERATION_RAMPING
+		// - algorithm courtesy of http://www.embedded.com/columns/technicalinsights/56800129?printable=true
+		// - precalculate ramp lengths instead of counting them, see AVR446 tech note
+		uint8_t recalc_speed;
+
+		// debug ramping algorithm
+		//if (move_state.step_no == 0) {
+		//	sersendf_P(PSTR("\r\nc %lu  c_min %lu  n %d"), dda->c, dda->c_min, move_state.n);
+		//}
+		recalc_speed = 0;
+		if (move_state.step_no < dda->rampup_steps) {
+			if (move_state.n < 0) // wrong ramp direction
+				move_state.n = -((int32_t)2) - move_state.n;
+			recalc_speed = 1;
+		}
+		else if (move_state.step_no >= dda->rampdown_steps) {
+			if (move_state.n > 0) // wrong ramp direction
+				move_state.n = -((int32_t)2) - move_state.n;
+			recalc_speed = 1;
+		}
+		if (recalc_speed) {
+			move_state.n += 4;
+			// be careful of signedness!
+			move_state.c = (int32_t)move_state.c - ((int32_t)(move_state.c * 2) / (int32_t)move_state.n);
+      //sersendf_P(PSTR("n:%ld; c:%ld; steps: %ld / %lu\n"), move_state.n,
+      //           move_state.c, move_state.step_no, move_state.y_steps);
+		}
 		move_state.step_no++;
+
+    #ifdef ACCELERATION_RAMPING
+    // This is a hack which deals with movements with an unknown number of
+    // acceleration steps. dda_create() sets a very high number, then.
+    if (move_state.c < dda->c_min &&
+        dda->rampup_steps > move_state.step_no + 5) {
+      dda->rampup_steps = move_state.step_no;
+      dda->rampdown_steps = dda->total_steps - dda->rampup_steps;
+    }
+    #endif
+
+// Print the number of steps actually needed for ramping up
+// Needed for comparing the number with the one calculated in dda_create()
+//static char printed = 0;
+//if (printed == 0 && dda->c_min >= move_state.c) {
+//  sersendf_P(PSTR("speedup %lu steps\n"), move_state.step_no);
+//  printed = 1;
+//}
+//if (move_state.step_no < 3) printed = 0;
+
+		// debug ramping algorithm
+		// raise this 10 for higher speeds to avoid flooding the serial line
+		//if (move_state.step_no % 10 /* 10, 50, 100, ...*/ == 0)
+		//	sersendf_P(PSTR("\r\nc %lu  c_min %lu  n %ld"),
+		//	           move_state.c, dda->c_min, move_state.n);
 	#endif
 
 	#ifdef ACCELERATION_TEMPORAL
@@ -641,11 +758,15 @@ void dda_step(DDA *dda) {
   if ((move_state.x_steps == 0 && move_state.y_steps == 0 &&
        move_state.z_steps == 0 && move_state.e_steps == 0)
     #ifdef ACCELERATION_RAMPING
-      || (move_state.endstop_stop && dda->n == 0)
+      || (dda->endstop_check && move_state.n == -3)
     #endif
       ) {
 		dda->live = 0;
-    dda->done = 1;
+    #ifdef ACCELERATION_CLOCK
+    if (dda->time_total - move_state.time_current > 1)
+      sersendf_P(PSTR("undershoot by %u ticks\n"),
+                 dda->time_total - move_state.time_current);
+    #endif
     #ifdef LOOKAHEAD
     // If look-ahead was using this move, it could have missed our activation:
     // make sure the ids do not match.
@@ -660,7 +781,20 @@ void dda_step(DDA *dda) {
 	else
 		psu_timeout = 0;
 
-  setTimer(dda->c >> 8);
+	#ifdef ACCELERATION_RAMPING
+		// we don't hit maximum speed exactly with acceleration calculation, so limit it here
+		// the nice thing about _not_ setting dda->c to dda->c_min is, the move stops at the exact same c as it started, so we have to calculate c only once for the time being
+		// TODO: set timer only if dda->c has changed
+		if (dda->c_min > move_state.c)
+			setTimer(dda->c_min >> 8);
+		else
+			setTimer(move_state.c >> 8);
+	#else
+    #ifdef ACCELERATION_CLOCK
+    move_state.ticks_since_step = 0;
+    #endif
+		setTimer(dda->c >> 8);
+	#endif
 
 	// turn off step outputs, hopefully they've been on long enough by now to register with the drivers
 	// if not, too bad. or insert a (very!) small delay here, or fire up a spare timer or something.
@@ -672,29 +806,28 @@ void dda_step(DDA *dda) {
 
   This should be called pretty often, like once every 1 ot 2 milliseconds.
 
-  Currently, this is checking the endstops and doing acceleration maths. These
-  don't need to be checked/recalculated on every single step, so this code
-  can be moved out of the highly time critical dda_step(). At high precision
-  (slow) searches of the endstop, this function is called more often than
-  dda_step() anyways.
+  Currently, this is checking the endstops. These don't need to be checked on
+  every single step, so this code can be moved out of the highly time critical
+  dda_step(). At high precision (slow) searches of the endstop, this function
+  is called more often than dda_step() anyways.
 
-  In the future, arc movement calculations might go here, too. Updating
-  movement direction 500 times a second is easily enough for smooth and
-  accurate curves!
+  In the future, acceleration and arc movement calculations might go here, too.
+  Updating speed 500 times a second is easily enough for smooth acceleration!
 */
 void dda_clock() {
   static volatile uint8_t busy = 0;
   DDA *dda;
   static DDA *last_dda = NULL;
-  uint8_t endstop_trigger = 0;
-  uint32_t move_step_no, move_c;
-  uint8_t recalc_speed;
+  static uint8_t endstop_stop = 0; ///< Stop due to endstop trigger
+
+  move_state.time_current++;
 
   dda = queue_current_movement();
   if (dda != last_dda) {
     move_state.debounce_count_xmin = move_state.debounce_count_ymin =
     move_state.debounce_count_zmin = move_state.debounce_count_xmax =
     move_state.debounce_count_ymax = move_state.debounce_count_zmax = 0;
+    endstop_stop = 0;
     last_dda = dda;
   }
 
@@ -703,8 +836,11 @@ void dda_clock() {
 
   // Lengthy calculations ahead!
   // Make sure we didn't re-enter, then allow nested interrupts.
-  if (busy)
+  if (busy) {
+    if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+      serial_writechar('B');
     return;
+  }
   busy = 1;
   sei();
 
@@ -712,7 +848,7 @@ void dda_clock() {
   //          means, we trust dda isn't changed behind our back, which could
   //          in principle (but rarely) happen if endstops are checked not as
   //          endstop search, but as part of normal operations.
-  if (dda->endstop_check && ! move_state.endstop_stop) {
+  if (endstop_stop == 0) {
     #if defined X_MIN_PIN || defined X_MAX_PIN
     if (dda->endstop_check & 0x1) {
       #if defined X_MIN_PIN
@@ -727,8 +863,8 @@ void dda_clock() {
       else
         move_state.debounce_count_xmax = 0;
       #endif
-      endstop_trigger = move_state.debounce_count_xmin >= ENDSTOP_STEPS ||
-                        move_state.debounce_count_xmax >= ENDSTOP_STEPS;
+      endstop_stop = move_state.debounce_count_xmin >= ENDSTOP_STEPS ||
+                     move_state.debounce_count_xmax >= ENDSTOP_STEPS;
     }
     #endif
 
@@ -746,8 +882,8 @@ void dda_clock() {
       else
         move_state.debounce_count_ymax = 0;
       #endif
-      endstop_trigger = move_state.debounce_count_ymin >= ENDSTOP_STEPS ||
-                        move_state.debounce_count_ymax >= ENDSTOP_STEPS;
+      endstop_stop = move_state.debounce_count_ymin >= ENDSTOP_STEPS ||
+                     move_state.debounce_count_ymax >= ENDSTOP_STEPS;
     }
     #endif
 
@@ -765,92 +901,92 @@ void dda_clock() {
       else
         move_state.debounce_count_zmax = 0;
       #endif
-      endstop_trigger = move_state.debounce_count_zmin >= ENDSTOP_STEPS ||
-                        move_state.debounce_count_zmax >= ENDSTOP_STEPS;
+      endstop_stop = move_state.debounce_count_zmin >= ENDSTOP_STEPS ||
+                     move_state.debounce_count_zmax >= ENDSTOP_STEPS;
     }
     #endif
 
     // If an endstop is definitely triggered, stop the movement.
-    if (endstop_trigger) {
+    if (endstop_stop) {
       #ifdef ACCELERATION_RAMPING
-        // For always smooth operations, don't halt apruptly,
-        // but start deceleration here.
-        ATOMIC_START
-          move_state.endstop_stop = 1;
-          if (move_state.step_no < dda->rampup_steps)  // still accelerating
-            dda->total_steps = move_state.step_no * 2;
-          else
-            // A "-=" would overflow earlier.
-            dda->total_steps = dda->total_steps - dda->rampdown_steps +
-                               move_state.step_no;
-          dda->rampdown_steps = move_state.step_no;
-        ATOMIC_END
-        // Not atomic, because not used in dda_step().
+      // For always smooth operations, don't halt apruptly,
+      // but start deceleration here.
+      ATOMIC_START
+        dda->rampdown_steps = move_state.step_no;
         dda->rampup_steps = 0; // in case we're still accelerating
+      ATOMIC_END
       #else
-        dda->live = 0;
+      dda->live = 0;
       #endif
 
       endstops_off();
     }
-  } /* ! move_state.endstop_stop */
+  } /* if (endstop_stop == 0) */
 
-  #ifdef ACCELERATION_RAMPING
-    // For maths about stepper speed profiles, see
-    // http://www.embedded.com/columns/technicalinsights/56800129?printable=true
-    // and http://www.atmel.com/images/doc8017.pdf (Atmel app note AVR446)
+  #ifdef ACCELERATION_CLOCK
+  uint32_t new_c = 0;
+  static uint8_t plateau_done = 0;
+
+  // Overtime?
+  if (move_state.time_current > dda->time_total) {
+    // Keep it short to have at least a chance to get it sent.
+    #warning Das hier hört nicht auf.
+    //serial_writestr_P(PSTR("ot"));
+    move_state.time_current = dda->time_total;
+  }
+  // Acceleration time.
+  else if (move_state.time_current < dda->time_accel) {
+    // v = a * t; c = 1 / v;
+    new_c = dda->f_to_c / ((uint32_t)ACCELERATION * 60UL * (uint32_t)move_state.time_current * TICK_TIME_MS / 1000UL);
+    plateau_done = 0;
+serial_writechar('a');
+  }
+  else if (move_state.time_current > dda->time_decel) {
+    uint32_t dt = (uint32_t)dda->time_total - (uint32_t)move_state.time_current;
+
+    if (dt < 1) // we undershot *sigh*
+      dt = 1;
+    // v = a * t; c = 1 / v;
+    new_c = dda->f_to_c / ((uint32_t)ACCELERATION * 60UL * dt * TICK_TIME_MS / 1000UL);
+serial_writechar('d');
+    plateau_done = 0;
+
+  }
+  // Plateau time.
+  else if (plateau_done == 0) {
+    new_c = dda->f_to_c / dda->F_max;
+    plateau_done = 1;
+serial_writechar('r');
+  }
+  else
+serial_writechar('.');
+
+  if (new_c) {
     ATOMIC_START
-      move_step_no = move_state.step_no;
-      // All other variables are read-only or unused in dda_step(),
-      // so no need for atomic operations.
+      dda->c = new_c;    
     ATOMIC_END
+  }
 
-    recalc_speed = 0;
-    if (move_step_no < dda->rampup_steps) {
-      #ifdef LOOKAHEAD
-        dda->n = dda->start_steps + move_step_no;
-      #else
-        dda->n = move_step_no;
-      #endif
-      recalc_speed = 1;
+  // Set up or readjust the timer if actual steps happen too slowly. dda_step()
+  // resets ticks_since_step to zero, while we increment it here, so we have an
+  // idea on how much time is gone since the last actual step.
+  // 300 = minimum time setTimer requires.
+if (dda->time_total == move_state.time_current)
+sersendf_P(PSTR("overshoot by %lu steps\n"), move_state.x_steps);
+  if (move_state.ticks_since_step) {
+    if ((dda->c >> 8) < ((uint32_t)move_state.ticks_since_step * TICK_TIME) + 300UL) {
+      // We're too late already, go as quick as possbile.
+      setTimer(300UL);
+serial_writechar('-');
     }
-    else if (move_step_no >= dda->rampdown_steps) {
-      dda->n = dda->total_steps - move_step_no;
-      recalc_speed = 1;
+    else {
+      // TODO: we ignore the time taken until we get here.
+      setTimer((dda->c >> 8) - ((uint32_t)move_state.ticks_since_step * TICK_TIME));
+serial_writechar('+');
     }
-    if (recalc_speed) {
-      if (dda->n == 0)
-        move_c = C0;
-      else
-        // Explicit formula: sqrt(n + 1) - sqrt(n),
-        // approximation here: 1 / (2 * sqrt(n)).
-        move_c = ((C0 >> 8) * int_inv_sqrt(dda->n)) >> 5;
-
-      if (move_c < dda->c_min) {
-        // We hit max speed not always exactly.
-        move_c = dda->c_min;
-
-        // This is a hack which deals with movements with an unknown number of
-        // acceleration steps. dda_create() sets a very high number, then,
-        // but we don't want to re-calculate all the time.
-        // This hack doesn't work with (and isn't neccessary for) movements
-        // accelerated by look-ahead.
-        #ifdef LOOKAHEAD
-          if (dda->crossF == 0) {  // For example, endstop searches.
-            dda->rampup_steps = move_step_no;
-            dda->rampdown_steps = dda->total_steps - dda->rampup_steps;
-          }
-        #else  // Without LOOKAHEAD, there's no dda->crossF.
-          dda->rampup_steps = move_step_no;
-          dda->rampdown_steps = dda->total_steps - dda->rampup_steps;
-        #endif
-      }
-
-      // Write results.
-      ATOMIC_START
-        dda->c = move_c;
-      ATOMIC_END
-    }
+  }
+  sei(); // setTimer locks interrupts
+  move_state.ticks_since_step++;
   #endif
 
   cli(); // Compensate sei() above.

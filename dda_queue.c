@@ -5,8 +5,8 @@
 */
 
 #include	<string.h>
-#ifndef SIMULATION
-	#include	<avr/interrupt.h>
+#ifndef SIMULATOR
+#include	<avr/interrupt.h>
 #endif
 
 #include	"config.h"
@@ -84,7 +84,7 @@ void queue_step() {
 		if (current_movebuffer->waitfor_temp) {
 			setTimer(HEATER_WAIT_TIMEOUT);
 			if (temp_achieved()) {
-				current_movebuffer->live = current_movebuffer->waitfor_temp = 0;
+				current_movebuffer->live = current_movebuffer->done = 0;
 				serial_writestr_P(PSTR("Temp achieved\n"));
 			}
 		}
@@ -95,8 +95,7 @@ void queue_step() {
 		}
 	}
 
-	// fall directly into dda_start instead of waiting for another step
-	// the dda dies not directly after its last step, but when the timer fires and there's no steps to do
+  // Start the next move if this one is done.
 	if (current_movebuffer->live == 0)
 		next_move();
 }
@@ -113,18 +112,16 @@ void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 	h &= (MOVEBUFFER_SIZE - 1);
 
 	DDA* new_movebuffer = &(movebuffer[h]);
-  DDA* prev_movebuffer = (queue_empty() != 0) ? NULL : &movebuffer[mb_head];
 
   if (t != NULL) {
-    dda_create(new_movebuffer, t, prev_movebuffer);
 		new_movebuffer->endstop_check = endstop_check;
 		new_movebuffer->endstop_stop_cond = endstop_stop_cond;
 	}
 	else {
 		// it's a wait for temp
 		new_movebuffer->waitfor_temp = 1;
-		new_movebuffer->nullmove = 0;
 	}
+  dda_create(new_movebuffer, t);
 
 	// make certain all writes to global memory
 	// are flushed before modifying mb_head.

@@ -220,9 +220,7 @@
 	- comment out pins not in use, as this drops the corresponding code and makes operations faster
 */
 
-#ifndef SIMULATION
 #include	"arduino.h"
-#endif
 
 /** \def USE_INTERNAL_PULLUPS
 	internal pullup resistors
@@ -269,7 +267,7 @@
 #define	E_STEP_PIN						DIO28
 #define	E_DIR_PIN							DIO27
 //#define E_ENABLE_PIN
-//#define	E_INVERT_DIR
+#define	E_INVERT_DIR
 //#define	E_INVERT_ENABLE
 
 #define	PS_ON_PIN							DIO15
@@ -577,7 +575,3 @@ PWM value for 'off'
 * OCR5CL - PL5 - DIO44                                                      *
 *                                                                           *
 \***************************************************************************/
-
-#ifdef SIMULATION
-    #include "simulation.h"
-#endif
