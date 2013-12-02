@@ -78,7 +78,8 @@
 /// http://blog.arcol.hu/?p=157 may help with this one
 //#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
 //#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
-#define	STEPS_PER_M_E					(8*43000*56/20*21/24)  // Empirically determined (mm of feedstock, 16th-steps)
+//#define	STEPS_PER_M_E				(8*43000*56/20*21/24)  // Empirically determined (mm of feedstock, 16th-steps)
+#define	STEPS_PER_M_E					2*(8*43000*56/20*21/24)  // (mm of feedstock, 32-steps)
 
 
 /*
@@ -89,8 +90,8 @@
 */
 
 /// used for G0 rapid moves and as a cap for all other feedrates
-#define	MAXIMUM_FEEDRATE_X			1400
-#define	MAXIMUM_FEEDRATE_Y			1200          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
+#define	MAXIMUM_FEEDRATE_X			9000
+#define	MAXIMUM_FEEDRATE_Y			9000          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
 #define	MAXIMUM_FEEDRATE_Z			50
 #define	MAXIMUM_FEEDRATE_E			1500 // 75 is sustainable, but we need faster for reversing (anti-ooze)
 
