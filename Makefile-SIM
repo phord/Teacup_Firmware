@@ -62,6 +62,6 @@ $(BUILDDIR)/%.sim.o: %.c | $(BUILDDIR)
 
 $(TARGET): $(OBJ)
 	@echo "  LINK      $@"
-	@cc $(CFLAGS) -o $@ $^
+	@cc $(CFLAGS) -o $@ $^ -lrt
 
 vpath %.c $(SIM_PATH)
