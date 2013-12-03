@@ -1,0 +1,23 @@
+#!/usr/bin/pyxplot
+
+
+accel(x, dx, vmax) = ( x< 5 ? 1 : x < 10 ? 0 : -1 )
+veloc(x, dx, vmax) = int_dx('accel(x,dx,vmax)',0,x)
+jerk(x,dx,vmax) = diff_dx('accel(x,dx,vmax)',x)
+
+#______________________________________________________________________________
+#                                                                 EXAMPLE PLOTS
+set samples 100
+
+#veloc(t, dx, vmax) = vdm(t, dx, vmax)
+#accel(t, dx, vmax) = adm(t, dx, vmax)
+#jerk(t, dx, vmax)  = jdm(t, dx, vmax)
+position(x, dx, vmax) = floor(0.5+int_dx('veloc(x,dx,vmax)',0,x))
+
+################################################
+## Plot velocity, accel and position
+################################################
+
+pdx = 100
+pVmax = 200
+plot [0:100] [0:100] veloc(x,pdx,pVmax) , accel(x,pdx,pVmax) , jerk(x, pdx, pVmax) , position(x,pdx,pVmax)
