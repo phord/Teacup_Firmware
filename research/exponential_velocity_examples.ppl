@@ -1,0 +1,176 @@
+#!/usr/bin/pyxplot
+
+# Exponential trajectory generation
+# From 2013 IEEE Paper
+
+# Most of this also worked in gnuplot at one point.
+# pyxplot allows us to differentiate and integrate, however.
+
+# a = time-scaling parameter
+# u = non-dimensional time (unit time?)
+# Vmax = max velocity
+# Time of max acceleration = Tam = 1/a * (2/3)**(1/3) =~ 0.8736 / a
+# Time of max jerk = Tjm = 1/a * ((3-sqrt(7))/3)**(1/3) = Q/a =~ 0.4906/a
+# Vmax = Vmax
+# Amax = Vmax * a * 0.3918
+# Jmax = Vmax * a**2 * (6*Q**(1/3) - 9*Q**(4/3))*exp(-Q) = Vmax * a**2 * 0.7652
+#
+# Therefore, calculate a_max = min( Amax / 1.1754 Vmax , sqrt( Jmax / 2.1524 * Vmax ) )
+#
+
+# 99.9% of acceleration completes at Ts = (-log(0.001))**(1/3.0)/a =~ 1.9045/a
+# Cruise time = Tc = Time at Vmax
+# Time "delay" = Time to complete move (before deceleration) = Td = Ts + Tc
+# Tend = Td + Ts
+# Tblend = Td
+# Positional change dx = Vmax * Td
+
+# smaller a = faster acceleration
+# u = a * T
+
+u(x) = a * x
+
+# Normalized f, f' and f'' w.r.t. 'u = alpha*t'
+f0_u(u)  = 1 - exp(-u**3)
+f1_u(x) = diff_dx('f0_u(x)', x)
+f2_u(x) = diff_dx('f1_u(x)', x)
+
+# Scaled f, f' and f'' w.r.t. 't'
+f0(t) = f0_u(u(t)) * Vmax
+f1(x) = diff_dx('f0(x)', x)
+f2(x) = diff_dx('f1(x)', x)
+
+f(t) = f0(t)
+
+#______________________________________________________________________________
+#                                                                MACHINE LIMITS
+Amax = 250
+Jmax = 250
+
+#______________________________________________________________________________
+#                                                            PROFILE CONSTRAINT
+# Given machine limits on these, the max possible 'a' is this:
+# min(x,y) = (x < y ? x : y )
+# amax(Vmax, Amax, Jmax) = min( abs(Amax / 1.1754 / Vmax) , sqrt( abs(Jmax / 2.1524 / Vmax) ) )
+Cratio =  (Amax**2) * 1.5579 / Jmax
+Cjmax_n = sqrt(Jmax / 2.1524)
+Camax_n = Amax / 1.1754
+amax(m,x,y) = m > Cratio ? Camax_n / m : Cjmax_n  / sqrt(m)
+
+# Note: Amax-limit < Jmax-limit when
+#    Amax / 1.1754 / Vmax < sqrt( Jmax / 2.1524 / Vmax)
+#    (Amax / 1.1754)^2 / (Jmax / 2.1524 ) < Vmax
+#    (Amax / 1.1754)^2 * 2.1524 / Jmax < Vmax
+#    (Amax^2 / 1.1754^2 * 2.1524 / Jmax < Vmax
+#    Amax^2 / 1.3816 * 2.1524 / Jmax < Vmax
+#    Amax^2 * 1.5579 / Jmax < Vmax
+
+#amax(Vmax, Amax, Jmax) = min( abs(Amax / 1.1754 / Vmax) , sqrt( abs(Jmax / 2.1524 / Vmax) ) )
+
+
+#______________________________________________________________________________
+#                                                           VELOCITY CONSTRAINT
+# For a given displacement dx, the max Vmax
+#   Ts = 1.9045 alpha
+#   Td = Ts + Tc
+#   Vmax * Td = x
+#
+#   Vmax * (Ts + Tc) = x
+#   Ts + Tc = x / Vmax
+#   Tc = x / Vmax - Ts
+#   Tc = x / Vmax - 1.9045 alpha
+#
+#   Vmax <= x^2 / (1.9045^2 / 2.1524) * Jmax
+#
+#vmlimit(dx, m) = dx^2 / (1.9045^2 / 2.1524) * Jmax
+Ts(a) = 1.9045/a
+vmlimit(dx, m ) = m #  ( a = amax( m , Amax , Jmax ) , dx/m < Ts(a) ? m : dx^2 / (1.9045^2 / 2.1524) * Jmax )
+
+#vmlimit(Td, m ) = ( a = amax( m , Amax , Jmax ) , Td > Ts(a) ? m : m/2.0 )
+# Vmax = vmlimit(dx/m,m)
+
+#______________________________________________________________________________
+#                                                             MOVEMENT PROFILES
+# Td = optimal travel time assuming all travel is at Vmax (which it is not)
+
+# Heaviside function
+H(x) = x < 0 ? 0 : 1
+
+# Velocity profile given Td
+v(t) = (t<0?0:f(t)) - (t<td?0:f(t - Td))
+
+# Acceleration profile
+ap(x) = diff_dx('v(x)', x)
+
+# Jerk profile
+jp(x) = diff_dx('ap(x)', x)
+
+# Velocity profile at Td and Vmax
+vtm(t, td, m) = (Vmax = m, a = amax( Vmax , Amax , Jmax ), Td = td * Vmax / m, v(t))
+
+# Acceleration profile at Td and Vmax
+atm(t, td, m) = (Vmax = m, a = amax( Vmax , Amax , Jmax ), Td = td * Vmax / m, ap(t))
+
+# Jerk profile at Td and Vmax
+jtm(t, td, m) = (Vmax = m, a = amax( Vmax , Amax , Jmax ), Td = td * Vmax / m, jp(t))
+
+# Velocity profile at dx and Vmax
+vdm(t, dx, m) = (Vmax = vmlimit(dx, m) , td = dx/Vmax, vtm(t,td,Vmax))
+
+# Acceleration profile at dx and Vmax
+adm(t, dx, m) = (Vmax = vmlimit(dx, m) , td = dx/Vmax, atm(t,td,Vmax))
+
+# Jerk profile at dx and Vmax
+jdm(t, dx, m) = (Vmax = vmlimit(dx, m) , td = dx/Vmax, jtm(t,td,Vmax))
+
+#______________________________________________________________________________
+#                                                                 MOVEMENT VARS
+# Vmax = desired path velocity
+# dx = distance traveled = Vmax * Td
+
+# Examples here:
+# Vmax = 30
+# dx = 4
+
+#______________________________________________________________________________
+#                                                                 EXAMPLE PLOTS
+set samples 1000
+
+veloc(t, dx, vmax) = vdm(t, dx, vmax)
+accel(t, dx, vmax) = adm(t, dx, vmax)
+jerk(t, dx, vmax)  = jdm(t, dx, vmax)
+position(x, dx, vmax) = floor(0.5+int_dx('veloc(x,dx,vmax)',0,x))
+
+################################################
+## Plot velocity, accel and position
+################################################
+
+pdx = 500
+pVmax = 80
+set xrange [0:10] noreverse
+#set yrange [-Jmax*2:Jmax*2]
+set yrange [-5:40]
+#plot veloc(x,pdx,pVmax) , accel(x,pdx,pVmax) , jerk(x, pdx, pVmax) , position(x,pdx,pVmax)
+
+# Velocity at different Vmax'es
+#plot veloc(x,pdx,10) , veloc(x,pdx,100) , veloc(x,pdx,200) , veloc(x,pdx,300)
+
+# Velocity at different distances
+plot 10+veloc(x,5,Vmax) , 10+position(x,5,pVmax), 20+veloc(x,15,Vmax), 20+position(x,15,pVmax), veloc(x,10,Vmax) , position(x,10,pVmax), 100 / (1.9045^2 / 2.1524) * Jmax
+
+################################################
+## Experiments with exceeding maximum jerk
+################################################
+
+#set yrange [150:200]
+#set zrange [-400:400]
+##plot 3d veloc(x,pdx,y) with surface , accel(x,pdx,y) with surface , jerk(x, pdx, y) with surface # , position(x,pdx,y)
+#plot 3d jerk(x, pdx, y) with surface # , position(x,pdx,y)
+
+a = amax( Vmax , Amax , Jmax )
+#print "Vmax(limit) = ", pVmax, "   Vmax(actual) = ", vmlimit(pdx)
+print "Amax(limit) = ", Amax, "   Amax(actual) = ", pVmax * a * 0.3918
+print "Jmax(limit) = ", Jmax, "   Jmax(actual) = ", pVmax * a**2 * 0.7652
+print "End position = ", position(30,pdx,pVmax)
+print "Calc vmax @dx=10 = ", 100 / (1.9045^2 / 2.1524) * Jmax
+print "Position = ", position(30,10,pVmax)
