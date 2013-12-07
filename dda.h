@@ -144,7 +144,17 @@ typedef struct {
 	#ifdef ACCELERATION_TEMPORAL
   axes_uint32_t     step_interval;   ///< time between steps on each axis
 	uint8_t						axis_to_step;    ///< axis to be stepped on the next interrupt
+  uint16_t          velocity_scaler_start; ///< Fixed point 0.16 multiplier to scale velocity from 0x to 1x
+  uint16_t          velocity_scaler_ramp;  ///< Velocity slope per tick * 65536
+  uint32_t          next_velocity_time;    ///< Ticks remaining in this planned linear velocity
 	#endif
+
+	#ifdef ACCELERATION_EXPONENTIAL
+  uint16_t alpha_max ;               // time scaler used to choose steepness of acceleration; 2.14 fixed point
+  uint32_t step_scaler ;             // interval scaler used to accelerate step_interval; 13.19 fixed point
+  uint16_t step_scaler_next ;        // interval scaler for the next segment
+  uint8_t  scaler_index ;
+  #endif
 
   /// Small variables. Many CPUs can access 32-bit variables at word or double
   /// word boundaries only and fill smaller variables in between with gaps,
