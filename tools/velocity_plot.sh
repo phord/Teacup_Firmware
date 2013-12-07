@@ -4,7 +4,7 @@ TMPDIR=/tmp
 TOOLSDIR=$(dirname $0)
 
 # Set this to your steps-per-mm value, or use 1 to keep results in steps
-MM_PER_STEP=500.0
+MM_PER_STEP=40.0
 
 die() {
 	echo "$1"
