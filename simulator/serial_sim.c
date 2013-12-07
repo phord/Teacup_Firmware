@@ -86,6 +86,7 @@ static void open_tty(const char *devname)
   tcflush(serial_fd, TCIOFLUSH);
 }
 
+static uint8_t file_data = 1;
 // return number of characters in the receive buffer
 uint8_t serial_rxchars(void) {
   sim_assert(serial_initialised, "serial interface not initialised");
@@ -96,7 +97,7 @@ uint8_t serial_rxchars(void) {
     return rx_chars_nb;
   }
   // File always has more data
-  return 1;
+  return file_data;
 }
 
 // read one character
@@ -104,9 +105,9 @@ uint8_t serial_popchar(void) {
   uint8_t c;
   ssize_t count;
   int fd = serial_fd ? serial_fd : gcode_fd;
-
+  if (!serial_rxchars())
+    return 0;
   sim_assert(serial_initialised, "serial interface not initialised");
-  sim_assert(serial_rxchars() > 0, "no chars to read");
   count = read(fd, &c, 1);
   if (gcode_fd && !count) {
     // EOF: try to open next file
@@ -114,8 +115,9 @@ uint8_t serial_popchar(void) {
     if (gcode_fd || serial_fd)
       return serial_popchar();
 
-    sim_info("Gcode processing completed.");
-    exit(0);
+    // Signal no more serial data
+    file_data = 0;
+    return 0;
   }
   sim_assert(count == 1, "no character in serial RX buffer");
   return c;
