@@ -46,6 +46,8 @@ static uint64_t now_us(void) {
   return now_ns() / 1000;
 }
 
+static uint16_t sim_idle = 0;
+#define IDLE_TERMINATOR 10000
 void sim_time_warp(void) {
   if (time_scale || timer_reason == 0)
     return;
@@ -54,6 +56,19 @@ void sim_time_warp(void) {
   warpTarget = 0;
 
   timer1_isr();
+
+  // Nothing in the queue; time to quit?
+  if (queue_empty())
+    ++sim_idle;
+  else
+    sim_idle=0;
+
+  // TODO: Make this more elegant.  Maybe like this:
+  // sim_run_flags &= ~(DDA_QUEUE_BUSY);
+  // Then have something in mendel.c main loop check for sim_run_flags=0
+  // Other run flags would indicate file data to be handled, user actions, etc.
+  if (sim_idle > IDLE_TERMINATOR)
+    exit(1);
 }
 
 uint16_t sim_tick_counter(void) {
