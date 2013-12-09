@@ -41,6 +41,22 @@ typedef struct {
 } TARGET;
 
 /**
+ * \struct TIME_SCALER
+ * \brief time shifting parameters to control acceleration through piecewise integration
+ * \note In order to simplify math and avoid division operations, we should only scale time
+ *       in one direction, from REAL time to SCALED time.  This way we only have to multiply
+ *       the real ticks by our time multiplier to get our scaled time.  Since
+ */
+typedef struct {
+  uint32_t    multiplier; ///< Fixed point 16.16 divisor to scale time from (1/65536)x to (65535/65536)x (0=disabled, or 1x)
+  int16_t     ramp;       ///< Time slope per tick * 65536; negative to decrease; 0 to hold constant
+
+} TIME_SCALER;
+
+// Convert real ticks (uint16) to scaled ticks in 16.16 fixed point
+#define TIME_REAL2SCALED(t,m) ((!m)?(t<<16):( (((uint32_t)t) * ((uint32_t)m) ))
+
+/**
  \struct VECTOR4D
  \brief 4 dimensional vector used to describe the difference between moves.
   Units are in micrometers and usually based off 'TARGET'.
@@ -57,6 +73,7 @@ typedef struct {
 	#ifdef ACCELERATION_TEMPORAL
   axes_uint32_t     time;       ///< time of the last step on each axis
   uint32_t          last_time;  ///< time of the last step of any axis
+  TIME_SCALER       time_scale; ///< Linear approximation of velocity for accel profiles
 	#endif
 
 	/// Endstop handling.
@@ -142,11 +159,13 @@ typedef struct {
   #endif
 	#endif
 	#ifdef ACCELERATION_TEMPORAL
-  axes_uint32_t     step_interval;   ///< time between steps on each axis
+  axes_uint32_t     step_interval;   ///< unscaled time between steps on each axis
 	uint8_t						axis_to_step;    ///< axis to be stepped on the next interrupt
-  uint16_t          velocity_scaler_start; ///< Fixed point 0.16 multiplier to scale velocity from 0x to 1x
+  uint32_t          velocity_scaler_start; ///< Fixed point 16.16 multiplier to scale velocity from 0x to 1x
   uint16_t          velocity_scaler_ramp;  ///< Velocity slope per tick * 65536
   uint32_t          next_velocity_time;    ///< Ticks remaining in this planned linear velocity
+
+  TIME_SCALER       time_scale;      ///< Bend time to impart acceleration
 	#endif
 
 	#ifdef ACCELERATION_EXPONENTIAL
