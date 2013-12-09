@@ -25,6 +25,10 @@
 /// time until next step, as output compare register is too small for long step times
 uint32_t	next_step_time;
 
+static uint32_t slew_value = 0x200000;   ///< Velocity divisor (default multiply-by-1)
+static uint32_t slew_slope = -0x010;      ///< Acceleration slope per 2ms
+static uint16_t slew_ticks = 0;         ///< Track passage of real time
+
 #ifdef ACCELERATION_TEMPORAL
 /// unwanted extra delays, ideally always zero
 uint32_t	step_extra_time = 0;
@@ -47,6 +51,7 @@ ISR(TIMER1_COMPB_vect) {
 	// set output compare register to the next clock tick
 	OCR1B = (OCR1B + TICK_TIME) & 0xFFFF;
 
+	slew_value += slew_slope ;
 	/*
 	clock stuff
 	*/
@@ -75,6 +80,7 @@ ISR(TIMER1_COMPB_vect) {
 
 /// comparator A is the step timer. It has higher priority then B.
 ISR(TIMER1_COMPA_vect) {
+
 	// Check if this is a real step, or just a next_step_time "overflow"
 	if (next_step_time < 65536) {
 		// step!
@@ -128,6 +134,20 @@ void timer_init()
 }
 
 #ifdef	MOTHERBOARD
+/** Specify clock speed adjustment for step timer operations.
+ *
+ * @param start Fixed-point (16.16) tick multiplier (time divisor) for period start
+ * @param end Fixed-point (16.16) tick multiplier (time divisor) for period end
+ * @param ticks length of period to apply start/end slope
+ *
+ * @note slew does not end after \b ticks time passes. The \b ticks parameter is only
+ *       used to determine the slope and provide piecewise integration
+ */
+void setTimeSlew(uint32_t start, uint32_t end, uint32_t ticks)
+{
+  slew_value = start;
+  slew_slope = (end - start) / ticks ;
+}
 /*! Specify how long until the step timer should fire.
 	\param delay in CPU ticks
 
@@ -154,7 +174,7 @@ void setTimer(uint32_t delay)
 	// as from one step interrupt to the next one. The last step interrupt happend
 	// at OCR1A, so start delay from there.
 	step_start = OCR1A;
-	next_step_time = delay;
+	next_step_time = ( delay * (slew_value >>8) ) >> 8;
 
 	#ifdef ACCELERATION_TEMPORAL
 	// 300 = safe number of cpu cycles until the interrupt actually happens

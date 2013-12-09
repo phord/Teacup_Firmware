@@ -512,8 +512,8 @@ void dda_start(DDA *dda) {
 			move_state.step_no = 0;
 		#endif
 		#ifdef ACCELERATION_TEMPORAL
-		move_state.time[X] = move_state.time[Y] = \
-			move_state.time[Z] = move_state.time[E] = 0UL;
+    memcpy(move_state.next_time, dda->step_interval, sizeof(move_state.next_time));
+//    move_state.time_scale.multiplier = 0x20000;
 		#endif
 
 		// ensure this dda starts
@@ -556,8 +556,8 @@ void dda_step(DDA *dda) {
   i = dda->axis_to_step;
   do_step(i);
   move_state.steps[i]--;
-  move_state.time[i] += dda->step_interval[i];
-  move_state.last_time = move_state.time[i];
+  move_state.last_time = move_state.next_time[i];
+  move_state.next_time[i] += dda->step_interval[i];
 #endif
 
 	#if STEP_INTERRUPT_INTERRUPTIBLE && ! defined ACCELERATION_RAMPING
@@ -624,17 +624,29 @@ void dda_step(DDA *dda) {
    */
 		uint32_t c_candidate;
 
-		dda->c = 0xFFFFFFFF;
+		// Special "axis" flag to update our integral slope periodically
+    #define INTEGRATE     AXIS_COUNT
+    dda->c = 0xFFFFFFFF;
+//    if (move_state.time_scale.multiplier != 0) {
+//      dda->axis_to_step = INTEGRATE;
+//      dda->c = 0x7FFF;
+//    }
     for (i = X; i < AXIS_COUNT; i++) {
       if (move_state.steps[i]) {
-        c_candidate = move_state.time[i] + dda->step_interval[i] - move_state.last_time;
+        c_candidate = move_state.next_time[i] ;
         if (c_candidate < dda->c) {
           dda->axis_to_step = i;
           dda->c = c_candidate;
         }
       }
     }
-		dda->c <<= 8;
+    dda->c -= move_state.last_time;
+    if (move_state.time_scale.multiplier) {
+      dda->c *= move_state.time_scale.multiplier;
+      dda->c >>= 8;
+    }
+    else
+      dda->c <<= 8;
 	#endif
 
   // If there are no steps left or an endstop stop happened, we have finished.
