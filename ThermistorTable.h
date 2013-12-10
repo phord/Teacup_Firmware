@@ -8,7 +8,7 @@
 
 #define NUMTEMPS 102
 
-uint16_t temptable[NUMTABLES][NUMTEMPS][2] PROGMEM = {
+const uint16_t temptable[NUMTABLES][NUMTEMPS][2] PROGMEM = {
 {
 #include "Thermistor_head.h"
 },
