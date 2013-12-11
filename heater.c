@@ -5,16 +5,15 @@
 */
 
 #include	<stdlib.h>
-#ifndef SIMULATION
-	#include	<avr/eeprom.h>
+#include	<avr/eeprom.h>
 #include	<avr/pgmspace.h>
-#endif
 
 #include	"arduino.h"
 #include	"debug.h"
 #include	"temp.h"
 #include "pinio.h"
 #include	"crc.h"
+#include "timer.h"
 
 #ifndef	EXTRUDER
 	#include	"sersendf.h"
@@ -544,7 +543,6 @@ void heater_print(uint16_t i) {
 }
 #endif
 
-
 uint8_t heater_stream_index = 255;
 void heater_stream_enable(uint16_t i) {
 	heater_stream_index = i ;
@@ -553,5 +551,5 @@ void heater_stream_enable(uint16_t i) {
 extern uint32_t heater_millis;
 void heater_stream(uint16_t i, uint16_t current, uint16_t target, uint8_t pwm) {
 	if ( heater_stream_index == i )
-		sersendf_P(PSTR("MTEMP:%lu %u %u %u\n"), heater_millis, current/4, target/4, pwm);
+		sersendf_P(PSTR("MTEMP:%lu %u %u %u\n"), get_millis(), current/4, target/4, pwm);
 }
