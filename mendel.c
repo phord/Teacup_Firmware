@@ -45,6 +45,7 @@
 #include	"heater.h"
 #include	"analog.h"
 #include	"pinio.h"
+#include	"arduino.h"
 #include	"clock.h"
 #include	"intercom.h"
 #include "simulator.h"

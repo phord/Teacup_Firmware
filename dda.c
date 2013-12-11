@@ -102,18 +102,23 @@ void dda_create(DDA *dda, TARGET *target) {
 	dda->allflags = 0;
 
 	if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
-		serial_writestr_P(PSTR("\n{DDA_CREATE: ["));
+    sersendf_P(PSTR("\nCreate: X %lq  Y %lq  Z %lq  F %lu\n"),
+               dda->endpoint.X, dda->endpoint.Y,
+               dda->endpoint.Z, dda->endpoint.F);
+
 
 	// we end at the passed target
 	memcpy(&(dda->endpoint), target, sizeof(TARGET));
 
   #ifdef LOOKAHEAD
-  // Set the start and stop speeds to zero for now = full stops between
-  // moves. Also fallback if lookahead calculations fail to finish in time.
-  dda->F_start = 0;
-  dda->F_end = 0;
-  // Give this move an identifier.
-  dda->id = idcnt++;
+    // Set the start and stop speeds to zero for now = full stops between
+    // moves. Also fallback if lookahead calculations fail to finish in time.
+    dda->F_start = 0;
+    dda->start_steps = 0;
+    dda->F_end = 0;
+    dda->end_steps = 0;
+    // Give this move an identifier.
+    dda->id = idcnt++;
   #endif
 
 // TODO TODO: We should really make up a loop for all axes.
@@ -159,7 +164,9 @@ void dda_create(DDA *dda, TARGET *target) {
   #endif
 
 	if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
-		sersendf_P(PSTR("%ld,%ld,%ld,%ld] ["), target->X - startpoint.X, target->Y - startpoint.Y, target->Z - startpoint.Z, target->E - startpoint.E);
+    sersendf_P(PSTR("[%ld,%ld,%ld,%ld]"),
+               target->X - startpoint.X, target->Y - startpoint.Y,
+               target->Z - startpoint.Z, target->E - startpoint.E);
 
 	dda->total_steps = dda->x_delta;
 	if (dda->y_delta > dda->total_steps)
@@ -170,7 +177,7 @@ void dda_create(DDA *dda, TARGET *target) {
 		dda->total_steps = dda->e_delta;
 
 	if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
-		sersendf_P(PSTR("ts:%lu"), dda->total_steps);
+    sersendf_P(PSTR(" [ts:%lu"), dda->total_steps);
 
 	if (dda->total_steps == 0) {
 		dda->nullmove = 1;
@@ -346,9 +353,9 @@ void dda_create(DDA *dda, TARGET *target) {
       // Quick hack: we do not do Z move joins as jerk on the Z axis is undesirable;
       // as the ramp length is calculated for XY, its incorrect for Z: apply the original
       // 'fix' to simply specify a large enough ramp for any speed.
-//      if (x_delta_um == 0 && y_delta_um == 0) {
+      if (x_delta_um == 0 && y_delta_um == 0) {
         dda->rampup_steps = 1000000; // replace mis-calculation by a safe value
-//      }
+      }
 
       if (dda->rampup_steps > dda->total_steps / 2)
         dda->rampup_steps = dda->total_steps / 2;
@@ -428,6 +435,12 @@ void dda_create(DDA *dda, TARGET *target) {
 */
 void dda_start(DDA *dda) {
 	// called from interrupt context: keep it simple!
+
+  if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+    sersendf_P(PSTR("Start: X %lq  Y %lq  Z %lq  F %lu\n"),
+               dda->endpoint.X, dda->endpoint.Y,
+               dda->endpoint.Z, dda->endpoint.F);
+
 	if ( ! dda->nullmove) {
 		// get ready to go
 		psu_timeout = 0;
@@ -657,10 +670,11 @@ void dda_step(DDA *dda) {
 		// z stepper is only enabled while moving
 		z_disable();
 	}
-	else
+  else {
 		psu_timeout = 0;
-
-  setTimer(dda->c >> 8);
+    // After having finished, dda_start() will set the timer.
+    setTimer(dda->c >> 8);
+  }
 
 	// turn off step outputs, hopefully they've been on long enough by now to register with the drivers
 	// if not, too bad. or insert a (very!) small delay here, or fire up a spare timer or something.
@@ -815,7 +829,11 @@ void dda_clock() {
       recalc_speed = 1;
     }
     else if (move_step_no >= dda->rampdown_steps) {
-      dda->n = dda->total_steps - move_step_no;
+      #ifdef LOOKAHEAD
+        dda->n = dda->total_steps - move_step_no + dda->end_steps;
+      #else
+        dda->n = dda->total_steps - move_step_no;
+      #endif
       recalc_speed = 1;
     }
     if (recalc_speed) {
