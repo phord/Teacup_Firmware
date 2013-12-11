@@ -22,6 +22,7 @@
 #include	"sersendf.h"
 #include	"pinio.h"
 #include "memory_barrier.h"
+#include "delay.h"
 //#include "graycode.c"
 
 #ifdef	DC_EXTRUDER
@@ -431,17 +432,14 @@ void dda_create(DDA *dda, TARGET *target) {
       if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
         sersendf_P(PSTR("time decel2 %u\n"), dda->time_decel);
 
-      // UGLY HACK: to compensate for inaccurate ac- and deceleration
-      //            time calculations, add a margin here:
-//      dda->time_decel += (dda->time_accel >> 3);
-//sersendf_P(PSTR("time decel hacked %u\n"), dda->time_decel); delay_ms(10);
-
       // This is the ratio between F (in mm/min) and c (in CPU clock ticks)
       // and is constant during the entire move, even on curved movements.
       // Essentially, it's the step rate of the fastest stepping stepper
       // of the entire move.
       // For linear movements it's simple:
-      dda->f_to_c = (distance * 2400L) / dda->total_steps * (F_CPU / 40000) << 8;
+      // TODO: Change this to keep fractional pieces to reduce error?
+      dda->f_to_c = (distance * (24L << 8) ) * (F_CPU / 400) / dda->total_steps ;
+      //dda->f_to_c = (distance * 2400L) / dda->total_steps * (F_CPU / 40000) << 8;
       if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
         sersendf_P(PSTR("f_to_c %lu\n"), dda->f_to_c);
 
@@ -449,9 +447,14 @@ void dda_create(DDA *dda, TARGET *target) {
       // all calculations by half a clock tick.
       // v = a * t; c = 1 / v;
 // Don't forget F_start!
-      dda->c = dda->f_to_c / ((uint32_t)ACCELERATION * 60UL * TICK_TIME_MS / 1000UL);
-      
-sersendf_P(PSTR("c_min new %lu\n"), dda->f_to_c / target->F); delay_ms(10);
+//      dda->c = dda->f_to_c / ((uint32_t)ACCELERATION * 60UL * TICK_TIME_MS / 1000UL);
+//sersendf_P(PSTR("dda->c %lx\n"), dda->c ); delay_ms(10);
+
+      // This change seems to make no difference at ACCEL=10 :-(  Can we improve it?
+      dda->c = ((dda->f_to_c / ((uint32_t)6UL * TICK_TIME_MS)) * (uint32_t)100UL) / ACCELERATION ;
+sersendf_P(PSTR("dda->c %lx\n"), dda->c ); delay_ms(10);
+
+sersendf_P(PSTR("c_min  new %lu\n"), dda->f_to_c / target->F); delay_ms(10);
 sersendf_P(PSTR("c_min trad %lu\n"), (move_duration / target->F) << 8); delay_ms(10);
 
 		#elif defined ACCELERATION_TEMPORAL
@@ -743,7 +746,7 @@ void dda_step(DDA *dda) {
 		dda->live = 0;
     dda->done = 1;
     #ifdef ACCELERATION_CLOCK
-    if (dda->time_total - move_state.time_current > 1)
+    if (dda->time_total - 1 > move_state.time_current )
       sersendf_P(PSTR("undershoot by %u ticks\n"),
                  dda->time_total - move_state.time_current);
     #endif
@@ -911,11 +914,12 @@ void dda_clock() {
   uint32_t new_c = 0;
   static uint8_t plateau_done = 0;
 
+  sersendf_P(PSTR("(%lu)"), move_state.time_current);
   // Overtime?
   if (move_state.time_current > dda->time_total) {
     // Keep it short to have at least a chance to get it sent.
-    #warning Das hier hört nicht auf.
-    //serial_writestr_P(PSTR("ot"));
+    #warning Does not stop here.
+    /*---------------------------------------------------------------------------*/ serial_writechar('*');
     move_state.time_current = dda->time_total;
   }
   // Acceleration time.
@@ -923,7 +927,7 @@ void dda_clock() {
     // v = a * t; c = 1 / v;
     new_c = dda->f_to_c / ((uint32_t)ACCELERATION * 60UL * (uint32_t)move_state.time_current * TICK_TIME_MS / 1000UL);
     plateau_done = 0;
-serial_writechar('a');
+/*---------------------------------------------------------------------------*/ serial_writechar('a');
   }
   else if (move_state.time_current > dda->time_decel) {
     uint32_t dt = (uint32_t)dda->time_total - (uint32_t)move_state.time_current;
@@ -932,7 +936,7 @@ serial_writechar('a');
       dt = 1;
     // v = a * t; c = 1 / v;
     new_c = dda->f_to_c / ((uint32_t)ACCELERATION * 60UL * dt * TICK_TIME_MS / 1000UL);
-serial_writechar('d');
+/*---------------------------------------------------------------------------*/ serial_writechar('d');
     plateau_done = 0;
 
   }
@@ -940,10 +944,10 @@ serial_writechar('d');
   else if (plateau_done == 0) {
     new_c = dda->f_to_c / dda->F_max;
     plateau_done = 1;
-serial_writechar('r');
+/*---------------------------------------------------------------------------*/ serial_writechar('r');
   }
   else
-serial_writechar('.');
+/*---------------------------------------------------------------------------*/ serial_writechar('.');
 
   if (new_c) {
     ATOMIC_START
@@ -961,12 +965,14 @@ sersendf_P(PSTR("overshoot by %lu steps\n"), move_state.x_steps);
     if ((dda->c >> 8) < ((uint32_t)move_state.ticks_since_step * TICK_TIME) + 300UL) {
       // We're too late already, go as quick as possbile.
       setTimer(300UL);
-serial_writechar('-');
+/*---------------------------------------------------------------------------*/ serial_writechar('-');
     }
     else {
       // TODO: we ignore the time taken until we get here.
+      // TODO: This is wrong because setTimer bases the next time on the when the last was expected to fire
+      //       Need to redo all this timer retriggering.
       setTimer((dda->c >> 8) - ((uint32_t)move_state.ticks_since_step * TICK_TIME));
-serial_writechar('+');
+/*---------------------------------------------------------------------------*/ serial_writechar('+');
     }
   }
   sei(); // setTimer locks interrupts

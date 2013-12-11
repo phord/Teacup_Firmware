@@ -159,13 +159,15 @@
 	acceleration and deceleration ramping.
 		Each movement starts at (almost) no speed, linearly accelerates to target speed and decelerates just in time to smoothly stop at the target. alternative to ACCELERATION_REPRAP
 */
-#define ACCELERATION_RAMPING
+//#define ACCELERATION_RAMPING
 
 /** \def ACCELERATION
 	how fast to accelerate when using ACCELERATION_RAMPING.
 		given in mm/s^2, decimal allowed, useful range 1. to 10'000. Start with 10. for milling (high precision) or 1000. for printing
 */
-#define ACCELERATION 1000.
+#define ACCELERATION 10.
+
+#define ACCELERATION_CLOCK
 
 /** \def ACCELERATION_TEMPORAL
 	temporal step algorithm
@@ -455,7 +457,9 @@ DEFINE_HEATER(bed,      DIO3,  1)
 		WARNING: this WILL break most host-side talkers that expect particular responses from firmware such as reprap host and replicatorG
 		use with serial terminal or other suitable talker only.
 */
-// #define	DEBUG
+#ifndef DEBUG
+  #define	DEBUG
+#endif
 
 /** \def BANG_BANG
 BANG_BANG
