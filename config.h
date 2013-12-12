@@ -186,7 +186,7 @@
   transition between moves instead of performing a dead stop every move.
   Enabling look-ahead requires about 3600 bytes of flash memory.
 */
-//#define LOOKAHEAD
+#define LOOKAHEAD
 
 /** \def LOOKAHEAD_MAX_JERK_XY
   When performing look-ahead, we need to decide what an acceptable jerk to the
@@ -196,7 +196,7 @@
   Sane values: 5 to 200
 */
 // #define LOOKAHEAD_MAX_JERK_XY 50	// Resulted in some X and Y slips on 5mm-calibration-test
-#define LOOKAHEAD_MAX_JERK_XY 25
+#define LOOKAHEAD_MAX_JERK_XY 10
 
 /** \def LOOKAHEAD_MAX_JERK_E
   When joining moves with different extrusion rates, define the maximum jerk
@@ -205,7 +205,7 @@
   Units: micrometers
   Sane values: 5 to 200
 */
-#define LOOKAHEAD_MAX_JERK_E 100
+#define LOOKAHEAD_MAX_JERK_E 200
 
 
 
