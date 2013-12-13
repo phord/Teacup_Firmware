@@ -66,7 +66,10 @@ uint16_t int_inv_sqrt(uint16_t a);
 // 2 ^ msbloc(v) >= v
 const uint8_t msbloc (uint32_t v);
 
-// Note: the floating point bit is optimized away during compilation
+// Calculates acceleration ramp length in steps.
+uint32_t acc_ramp_len(uint32_t feedrate, uint32_t steps_per_m);
+
+// For X axis only, should become obsolete:
 #define ACCELERATE_RAMP_LEN(speed) (((speed)*(speed)) / (uint32_t)((7200000.0f * ACCELERATION) / (float)STEPS_PER_M_X))
 
 // Initialization constant for the ramping algorithm.

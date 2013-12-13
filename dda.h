@@ -130,8 +130,9 @@ typedef struct {
 	uint32_t					z_delta; ///< number of steps on Z axis
 	uint32_t					e_delta; ///< number of steps on E axis
 
-	/// total number of steps: set to \f$\max(\Delta x, \Delta y, \Delta z, \Delta e)\f$
-	uint32_t					total_steps;
+  uint32_t          total_steps; ///< steps of the "fast" axis
+  uint32_t          fast_um;     ///< movement length of this fast axis
+  uint32_t          fast_spm;    ///< steps per meter of the fast axis
 
 	uint32_t					c; ///< time until next step, 24.8 fixed point
 
@@ -151,11 +152,11 @@ typedef struct {
   // With the look-ahead functionality, it is possible to retain physical
   // movement between G1 moves. These variables keep track of the entry and
   // exit speeds between moves.
+  uint32_t          distance;
   uint32_t          crossF;
-  uint32_t          F_start;
-  uint32_t          start_steps; ///< steps to reach F_start
-  uint32_t          F_end;
-  uint32_t          end_steps; ///< steps to stop from F_end
+  // These two are based on the "fast" axis, the axis with the most steps.
+  uint32_t          start_steps; ///< would be required to reach start feedrate
+  uint32_t          end_steps; ///< would be required to stop from end feedrate
   // Displacement vector, in um, based between the difference of the starting
   // point and the target. Required to obtain the jerk between 2 moves.
   // Note: x_delta and co are in steps, not um.
@@ -215,10 +216,10 @@ void dda_new_startpoint(void);
 void dda_create(DDA *dda, TARGET *target);
 
 // start a created DDA (called from timer interrupt)
-void dda_start(DDA *dda)																						__attribute__ ((hot));
+void dda_start(DDA *dda);
 
 // DDA takes one step (called from timer interrupt)
-void dda_step(DDA *dda)																							__attribute__ ((hot));
+void dda_step(DDA *dda);
 
 // regular movement maintenance
 void dda_clock(void);

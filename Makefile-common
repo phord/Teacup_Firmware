@@ -31,9 +31,16 @@
 #                                                                            #
 ##############################################################################
 
-BUILDDIR ?= build/$(BUILD_FLAVOR)/$(USER_CONFIG)
+BUILDDIR = build
 USER_CONFIG ?= config.h
-BUILD_FLAVOR ?= $(TARGET)
+
+ifdef BUILD_FLAVOR
+BUILDDIR := $(BUILDDIR)/$(BUILD_FLAVOR)
+endif
+
+ifneq ($(USER_CONFIG),config.h)
+BUILDDIR := $(BUILDDIR)/$(USER_CONFIG:.h=)
+endif
 
 CFLAGS += -save-temps=obj -DUSER_CONFIG='"$(USER_CONFIG)"'
 
