@@ -21,7 +21,7 @@ $0 !~ /^#/ {
         prev_t[i] = $1
         prev_x[i] = $i
       }
-      printf " %s %0.0f", $i, deriv[i]
+      printf " %s %0f", $i, deriv[i]
     }
     print ""
   }
