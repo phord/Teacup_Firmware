@@ -252,4 +252,3 @@ uint32_t acc_ramp_len(uint32_t feedrate, uint32_t steps_per_m) {
   return (feedrate * feedrate) /
          (((uint32_t)7200000UL * ACCELERATION) / steps_per_m);
 }
-
