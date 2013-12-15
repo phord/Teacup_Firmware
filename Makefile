@@ -1,15 +1,43 @@
-.PHONY: sim avr plot clean
+################################################################################
+#
+## Example Makefile
+#
+# For convenience, copy this file to "Makefile" and customize it to fit your
+# needs.
+#
+# Then you can type 'make avr' or simply 'make' to build for your printer.
+#
+################################################################################
+.PHONY: sim avr clean all default plot program
 
+# Override variables in the stock makefiles
+export F_CPU = 20000000L
+export MCU_TARGET = atmega644p
+
+default: avr
+
+all: sim avr plot
+
+# Build the simulator
 sim:
-	make -sf Makefile-SIM
+	@echo "----[ Simulator ]----"
+	@make -sf Makefile-SIM
 
+# Build Teacup for an Atmel processor
 avr:
-	make -sf Makefile-AVR
+	@echo "----[ $(MCU_TARGET) ]----"
+	@make -sf Makefile-AVR
+
+program:
+	@echo "----[ $(MCU_TARGET) ]----"
+	@make -sf Makefile-AVR program
 
 clean:
-	make -sf Makefile-SIM clean
-	make -sf Makefile-AVR clean
-	rm -f *.png
+	@echo "----[ Clean ]----"
+	@make -sf Makefile-SIM clean
+	@make -sf Makefile-AVR clean
+	# Add any more cleanup steps you want here. Example,
+	@rm -f *.png
 
 %.png: gnuplot/%.gpi
 	gnuplot -persist $<
