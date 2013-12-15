@@ -9,7 +9,7 @@
 		Please see README for a full introduction and long-winded waffle about this project
 	\section install_sec	Installation
 		\subsection step1 Step 1: Download
-			\code git clone git://github.com/triffid/Teacup_Firmware \endcode
+			\code git clone git://github.com/traumflug/Teacup_Firmware \endcode
 		\subsection step2 Step 2: configure
 			\code cp config.[yourboardhere].h config.h \endcode
 			Edit config.h to suit your machone
@@ -29,7 +29,7 @@
 #include	<avr/interrupt.h>
 #endif
 
-#include	"config.h"
+#include	"config_wrapper.h"
 #include	"fuses.h"
 
 #include	"serial.h"
@@ -45,6 +45,7 @@
 #include	"heater.h"
 #include	"analog.h"
 #include	"pinio.h"
+#include	"arduino.h"
 #include	"clock.h"
 #include	"intercom.h"
 #include "simulator.h"

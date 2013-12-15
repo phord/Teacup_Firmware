@@ -32,12 +32,24 @@
 ##############################################################################
 
 BUILDDIR = build
-CFLAGS += -save-temps=obj
+USER_CONFIG ?= config.h
+
+ifdef BUILD_FLAVOR
+BUILDDIR := $(BUILDDIR)/$(BUILD_FLAVOR)
+endif
+
+ifneq ($(USER_CONFIG),config.h)
+BUILDDIR := $(BUILDDIR)/$(USER_CONFIG:.h=)
+endif
+
+CFLAGS += -save-temps=obj -DUSER_CONFIG='"$(USER_CONFIG)"'
 
 CC = $(TOOLCHAIN)gcc
 OBJDUMP = $(TOOLCHAIN)objdump
 OBJCOPY = $(TOOLCHAIN)objcopy
 
+
+OBJ = $(patsubst %.c,$(BUILDDIR)/%.o,$(SOURCES))
 
 .PHONY: all clean doc functionsbysize
 .PRECIOUS: %.o %.elf
@@ -73,7 +85,7 @@ endef
 
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	@echo "  CC        $@"
-	@$(CC) -c $(CFLAGS) -MMD -Wa,-adhlns=$(@:.o=.al) -o $@ $<
+	@$(CC) -c $(CFLAGS) -MMD -o $@ $<
 	@$(call CCPOST)
 
 $(BUILDDIR)/%.elf: $(OBJ)

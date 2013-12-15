@@ -24,7 +24,7 @@
 #include	"pinio.h"
 #include	"debug.h"
 #include	"clock.h"
-#include	"config.h"
+#include	"config_wrapper.h"
 #include	"home.h"
 
 /// the current tool
@@ -609,10 +609,10 @@ void process_gcode_command() {
 				//? The details are returned to the host computer as key:value pairs separated by spaces and terminated with a linefeed.
 				//?
 				//? sample data from firmware:
-				//?  FIRMWARE_NAME:Teacup FIRMWARE_URL:http://github.com/triffid/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:1 TEMP_SENSOR_COUNT:1 HEATER_COUNT:1
+				//?  FIRMWARE_NAME:Teacup FIRMWARE_URL:http://github.com/traumflug/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:1 TEMP_SENSOR_COUNT:1 HEATER_COUNT:1
 				//?
 
-				sersendf_P(PSTR("FIRMWARE_NAME:Teacup FIRMWARE_URL:http://github.com/triffid/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:%d TEMP_SENSOR_COUNT:%d HEATER_COUNT:%d"), 1, NUM_TEMP_SENSORS, NUM_HEATERS);
+				sersendf_P(PSTR("FIRMWARE_NAME:Teacup FIRMWARE_URL:http://github.com/traumflug/Teacup_Firmware/ PROTOCOL_VERSION:1.0 MACHINE_TYPE:Mendel EXTRUDER_COUNT:%d TEMP_SENSOR_COUNT:%d HEATER_COUNT:%d"), 1, NUM_TEMP_SENSORS, NUM_HEATERS);
 				// newline is sent from gcode_parse after we return
 				break;
 
@@ -744,28 +744,6 @@ void process_gcode_command() {
 						break;
 					temp_set(HEATER_BED, next_target.S);
 				#endif
-				break;
-
-			case 203:
-				//? --- M203: monitor temperature PID data (RepetierHost) ---
-				//? Enable streaming temperature reporting for one of the temp sensors
-				if (next_target.seen_S) {
-					switch (next_target.S)
-					{
-						case 0:     // Extruder 1
-							heater_stream_enable(0);
-							break;
-
-						case 100:   // Heated bed
-							heater_stream_enable(1);
-							break;
-
-						case 1:     // Extruder 2 (not present)
-						default:	// Anything else disables streaming info
-							heater_stream_enable(255);   // 255=NotASensor, so disabled
-							break;
-					}
-				}
 				break;
 
 			#ifdef	DEBUG

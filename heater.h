@@ -1,7 +1,7 @@
 #ifndef	_HEATER_H
 #define	_HEATER_H
 
-#include "config.h"
+#include "config_wrapper.h"
 #include	<stdint.h>
 #include "simulator.h"
 #include "temp.h"
@@ -10,7 +10,7 @@
 #define DEFINE_HEATER(name, pin, pwm) HEATER_ ## name,
 typedef enum
 {
-	#include "config.h"
+	#include "config_wrapper.h"
 	NUM_HEATERS,
 	HEATER_noheater
 } heater_t;
@@ -33,8 +33,5 @@ void heater_save_settings(void);
 #endif /* EECONFIG */
 
 void heater_print(uint16_t i);
-
-void heater_stream_enable(uint16_t i);
-void heater_stream(uint16_t i, uint16_t current, uint16_t target, uint8_t pwm);
 
 #endif	/* _HEATER_H */

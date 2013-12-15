@@ -2,7 +2,7 @@
 #define DDA_LOOKAHEAD_H_
 
 #include <stdint.h>
-#include "config.h"
+#include "config_wrapper.h"
 #include "dda.h"
 
 #ifndef ACCELERATION_RAMPING
@@ -13,11 +13,10 @@
 #ifdef LOOKAHEAD
 
 // Sanity: make sure the defines are in place
-#ifndef LOOKAHEAD_MAX_JERK_XY
-#error Your config.h does not specify LOOKAHEAD_MAX_JERK_XY while LOOKAHEAD is enabled!
-#endif
-#ifndef LOOKAHEAD_MAX_JERK_E
-#error Your config.h does not specify LOOKAHEAD_MAX_JERK_E while LOOKAHEAD is enabled!
+#if ! defined MAX_JERK_X || ! defined MAX_JERK_Y || \
+    ! defined MAX_JERK_Z || ! defined MAX_JERK_E
+#error Your config.h does not specify one of MAX_JERK_X,
+#error MAX_JERK_Y, MAX_JERK_Z or MAX_JERK_E while LOOKAHEAD is enabled!
 #endif
 
 // Sanity: the acceleration of Teacup is not implemented properly; as such we can only
@@ -44,21 +43,7 @@
 #define MAX(a,b)  (((a)>(b))?(a):(b))
 #define MIN(a,b)  (((a)<(b))?(a):(b))
 
-/**
- * Join 2 moves by removing the full stop between them, where possible.
- * To join the moves, the expected jerk - or force - of the change in direction is calculated.
- * The jerk is used to scale the common feed rate between both moves to obtain an acceptable speed
- * to transition between 'prev' and 'current'.
- *
- * Premise: we currently join the last move in the queue and the one before it (if any).
- * This means the feed rate at the end of the 'current' move is 0.
- *
- * Premise: the 'current' move is not dispatched in the queue: it should remain constant while this
- * function is running.
- *
- * Note: the planner always makes sure the movement can be stopped within the
- * last move (= 'current'); as a result a lot of small moves will still limit the speed.
- */
+void dda_find_crossing_speed(DDA *prev, DDA *current);
 void dda_join_moves(DDA *prev, DDA *current);
 
 // Debug counters

@@ -32,7 +32,7 @@ typedef struct {
                                         pwm ? (pin ## _PWM) : NULL},
 static const heater_definition_t heaters[NUM_HEATERS] =
 {
-	#include	"config.h"
+	#include	"config_wrapper.h"
 };
 #undef DEFINE_HEATER
 
@@ -271,7 +271,7 @@ void heater_init() {
 	do {
 		#undef	DEFINE_HEATER
 		#define	DEFINE_HEATER(name, pin, pwm) WRITE(pin, 0); SET_OUTPUT(pin);
-			#include "config.h"
+			#include "config_wrapper.h"
 		#undef DEFINE_HEATER
 	} while (0);
 }
@@ -402,9 +402,6 @@ void heater_tick(heater_t h, temp_type_t type, uint16_t current_temp, uint16_t t
 		sersendf_P(PSTR("!! heater %d or its temp sensor broken - temp is %d.%dC, target is %d.%dC, didn't reach %d.%dC in %d0 milliseconds\n"), h, current_temp >> 2, (current_temp & 3) * 25, target_temp >> 2, (target_temp & 3) * 25, heaters_runtime[h].sane_temperature >> 2, (heaters_runtime[h].sane_temperature & 3) * 25, heaters_runtime[h].sanity_counter);
 	}
 	#endif /* HEATER_SANITY_CHECK */
-
-	// Stream PID info for M203 graphing when requested
-	heater_stream(h, current_temp, target_temp, pid_output);
 
 	heater_set(h, pid_output);
 }
@@ -541,14 +538,3 @@ void heater_print(uint16_t i) {
 	sersendf_P(PSTR("P:%ld I:%ld D:%ld Ilim:%u crc:%u "), heaters_pid[i].p_factor, heaters_pid[i].i_factor, heaters_pid[i].d_factor, heaters_pid[i].i_limit, crc_block(&heaters_pid[i].p_factor, 14));
 }
 #endif
-
-uint8_t heater_stream_index = 255;
-void heater_stream_enable(uint16_t i) {
-	heater_stream_index = i ;
-}
-
-extern uint32_t heater_millis;
-void heater_stream(uint16_t i, uint16_t current, uint16_t target, uint8_t pwm) {
-	if ( heater_stream_index == i )
-		sersendf_P(PSTR("MTEMP:%lu %u %u %u\n"), get_millis(), current/4, target/4, pwm);
-}
