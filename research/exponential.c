@@ -35,13 +35,15 @@ float trapezoidal_velocity( float now ) {
 	return acc * now ;
 }
 
+/* PLANNER STRUCTURE */
+float td ;
+float ts ;
+float te ;
+
 float trapezoidal_position( float now , int dx ) {
-	float td = Td(dx);
-	float ts = Ts();
-	float te = move_time(dx); // Td + Ts
 	float pos ;
 
-	//-- Constain to our move time
+	//-- Constrain to our move time
 	if ( now > te ) now = te ;
 
 	float rampup = now;
@@ -63,12 +65,9 @@ float trapezoidal_position( float now , int dx ) {
 	return pos;
 }
 
-float velocity_profile( uint32_t dx , float now ) {
+float velocity_profile( float now ) {
 	// dx = steps to move
 	// now = time in secs to find velocity
-	float td = Td(dx);
-	float ts = Ts();
-	float te = move_time(dx); // Td + Ts
 	float v = 0 ;
 	if (now > te) return 0;
 	if (now < ts) v  = trapezoidal_velocity(now) ;       // Calculate trapezoidal velocity during acceleration
@@ -81,12 +80,30 @@ float t(int tick) {
 	return ((float)tick)/f;
 }
 
+/* Plan a movement at a given vmax, accel-max, and distance */
+void plan(uint32_t v, uint32_t a, uint32_t dx) {
+	vmax = v;
+	acc = a;
+	td = Td(dx);
+	ts = Ts();
+	te = td + ts;
+}
+
 void main(void) {
 	int tick;
 	int dx;
 	for (dx = 5; dx < 40 ; dx += 10 ) {
-		for (tick = 0 ; tick < 10*f ; tick+=1000 )
-			printf("%u %f %f %f\n", tick, t(tick), velocity_profile(dx, t(tick)), trapezoidal_position(t(tick), dx));
+		plan(100, 1000, dx);
+		float pos = 0;
+		float vprev = 0;
+		int tprev = 0;
+		for (tick = 0 ; tick < 10*f ; tick+=30000 ) {
+			float v = velocity_profile(t(tick));
+			pos += (v + vprev)/2.0 * t(tick - tprev);
+			printf("%u %f %f %f %d\n", tick, t(tick), velocity_profile(t(tick)), trapezoidal_position(t(tick), dx), (int)(pos+0.5));
+			vprev = v;
+			tprev = tick;
+		}
 	}
 
 	float td = Td(dx);
