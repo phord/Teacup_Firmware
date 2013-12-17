@@ -40,7 +40,7 @@ float td ;
 float ts ;
 float te ;
 
-float trapezoidal_position( float now , int dx ) {
+float trapezoidal_position( float now ) {
 	float pos ;
 
 	//-- Constrain to our move time
@@ -82,6 +82,14 @@ float t(int tick) {
 
 /* Plan a movement at a given vmax, accel-max, and distance */
 void plan(uint32_t v, uint32_t a, uint32_t dx) {
+	// Ensure:
+	// dx / vmax > vmax /acc
+	// dx > vmax^2 / acc
+	// dx * acc / vmax^2 > 1
+	// dx * acc > vmax^2
+	// vmax < sqrt(dx * acc)
+	if ( dx*a > 2 && dx * a < v*v) v = sqrt(dx * a);
+
 	vmax = v;
 	acc = a;
 	td = Td(dx);
@@ -92,15 +100,17 @@ void plan(uint32_t v, uint32_t a, uint32_t dx) {
 void main(void) {
 	int tick;
 	int dx;
-	for (dx = 5; dx < 40 ; dx += 10 ) {
-		plan(100, 1000, dx);
+	for (dx = 35; dx < 40 ; dx += 20 ) {
+		plan(12800, 320, dx*1000);
 		float pos = 0;
 		float vprev = 0;
 		int tprev = 0;
-		for (tick = 0 ; tick < 10*f ; tick+=30000 ) {
+		printf("# dx=%u  Ts=%f  Td=%f  Te=%f\n" , dx, ts, td, te );
+		printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
+		for (tick = 0 ; tick < f*te ; tick+=1000 ) {
 			float v = velocity_profile(t(tick));
 			pos += (v + vprev)/2.0 * t(tick - tprev);
-			printf("%u %f %f %f %d\n", tick, t(tick), velocity_profile(t(tick)), trapezoidal_position(t(tick), dx), (int)(pos+0.5));
+			printf("%u %f %f %f %d\n", tick, t(tick), velocity_profile(t(tick)), trapezoidal_position(t(tick)), (int)(pos+0.5));
 			vprev = v;
 			tprev = tick;
 		}
@@ -109,7 +119,6 @@ void main(void) {
 	float td = Td(dx);
 	float ts = Ts();
 	float te = move_time(dx); // Td + Ts
-	printf("dx=%u  Ts=%f  Td=%f  Te=%f\n" , dx, ts, td, te );
 }
 
 void old_main(void) {
@@ -131,7 +140,7 @@ void old_main(void) {
 
   // We can calculate the ideal velocity at any discrete point in time, and that v will tell us when our next step should occur.
   // But when we fire that step occurs, we will already be at a new v and so we will be late.
-  // We can find the ...
+  // We can find the actual next-step time with increasing accuracy, though.
   //
   uint32_t granularity = 1000 ;
   for ( x = 1 ; x < ticks ; x+= granularity ) {
