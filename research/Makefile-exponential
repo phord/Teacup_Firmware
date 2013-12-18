@@ -1,0 +1,14 @@
+default: bin
+
+.PHONY: plot
+
+all: plot
+
+exponential.trace: exponential
+	./exponential > exponential.trace
+
+plot: exponential.trace
+	gnuplot --persist -e "plot 'exponential.trace' u 2:3 with lines , '' u 2:4 with lines, '' u 2:5 with lines"
+
+exponential: exponential.c
+	gcc -o exponential exponential.c -lm
