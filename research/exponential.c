@@ -134,6 +134,8 @@ void main(void) {
 			tprev = tick;
 		}
 	}
+
+	exit(0);
 }
 
 void old_main(void) {
