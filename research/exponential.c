@@ -11,64 +11,64 @@ uint32_t vmax = 100 , acc = 1000 ;
 uint32_t f = 20000000;
 
 // ts = time to achieve vmax
-float Ts() {
+double Ts() {
 	// Trapezoidal velocity (max constant acceleration)
 	// acc * Ts = vmax
 	// ts = vmax / acc
-	return (float)vmax / (float)acc ;
+	return (double)vmax / (double)acc ;
 }
-//float ts = 2.1 * alpha ;              // Exponential velocity
+//double ts = 2.1 * alpha ;              // Exponential velocity
 
-float Td( uint32_t dx ) {
+double Td( uint32_t dx ) {
 	// td = movement time as vmax
-	return (float) dx / (float)vmax ;
+	return (double) dx / (double)vmax ;
 }
 
-float move_time( uint32_t dx ) {
+double move_time( uint32_t dx ) {
 	// return time required to move dx steps
 	// td + ts = total movement time
 	return Td(dx) + Ts() ;
 }
 
-float trapezoidal_velocity( float now ) {
+double trapezoidal_velocity( double now ) {
 	// Trapezoid velocity (max constant acceleration)
 	return acc * now ;
 }
 
 /* PLANNER STRUCTURE */
-float td ;
-float ts ;
-float te ;
+double td ;
+double ts ;
+double te ;
 
-float trapezoidal_position( float now ) {
-	float pos ;
+double trapezoidal_position( double now ) {
+	double pos ;
 
 	//-- Constrain to our move time
 	if ( now > te ) now = te ;
 
-	float rampup = now;
+	double rampup = now;
 	if ( rampup > ts) rampup = ts ;
-	float cruise = 0;
+	double cruise = 0;
 	if ( now >= td || now > ts ) cruise = now - ts ;
 	if ( cruise < 0 ) cruise = 0;
-	float rampdown = now - td;
+	double rampdown = now - td;
 	if ( rampdown < 0 ) rampdown = 0 ;
 
 	// Rampup period
-	pos = (float)acc * rampup * rampup / 2.0;
+	pos = (double)acc * rampup * rampup / 2.0;
 
 	// Cruise period
-	pos += cruise * (float)vmax;
+	pos += cruise * (double)vmax;
 
 	// Rampdown period / idle period
-	pos -= (float)acc * rampdown * rampdown / 2.0;
+	pos -= (double)acc * rampdown * rampdown / 2.0;
 	return pos;
 }
 
-float velocity_profile( float now ) {
+double velocity_profile( double now ) {
 	// dx = steps to move
 	// now = time in secs to find velocity
-	float v = 0 ;
+	double v = 0 ;
 	if (now > te) return 0;
 	if (now < ts) v  = trapezoidal_velocity(now) ;       // Calculate trapezoidal velocity during acceleration
 	else          v = trapezoidal_velocity(ts);
@@ -76,8 +76,8 @@ float velocity_profile( float now ) {
 	return v;
 }
 
-float t(int tick) {
-	return ((float)tick)/f;
+double t(int tick) {
+	return ((double)tick)/f;
 }
 
 /* Plan a movement at a given vmax, accel-max, and distance */
@@ -102,13 +102,13 @@ void main(void) {
 	int dx;
 	for (dx = 35; dx < 40 ; dx += 20 ) {
 		plan(12800, 320, dx*1000);
-		float pos = 0;
-		float vprev = 0;
+		double pos = 0;
+		double vprev = 0;
 		int tprev = 0;
 		printf("# dx=%u  Ts=%f  Td=%f  Te=%f\n" , dx, ts, td, te );
 		printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
 		for (tick = 0 ; tick < f*te ; tick+=1000 ) {
-			float v = velocity_profile(t(tick));
+			double v = velocity_profile(t(tick));
 			pos += (v + vprev)/2.0 * t(tick - tprev);
 			printf("%u %f %f %f %d\n", tick, t(tick), velocity_profile(t(tick)), trapezoidal_position(t(tick)), (int)(pos+0.5));
 			vprev = v;
@@ -116,9 +116,9 @@ void main(void) {
 		}
 	}
 
-	float td = Td(dx);
-	float ts = Ts();
-	float te = move_time(dx); // Td + Ts
+	double td = Td(dx);
+	double ts = Ts();
+	double te = move_time(dx); // Td + Ts
 }
 
 void old_main(void) {
