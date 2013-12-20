@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <math.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <ctype.h>
+#include <getopt.h>
 
 // Reflect times in clock cycles
 
@@ -98,8 +102,8 @@ uint64_t velocity_profile( uint64_t now ) {
 	return v;
 }
 
-/* Plan a movement at a given vmax, accel-max, and distance */
-void plan(uint64_t v, uint64_t a, uint64_t dx) {
+/* Plan a trapezoidal-velocity movement at a given vmax, accel-max, and distance */
+void plan_trapezoidal(uint64_t v, uint64_t a, uint64_t dx) {
 	// Ensure:
 	// dx / vmax > vmax / acc
 	// dx > vmax^2 / acc
@@ -116,87 +120,67 @@ void plan(uint64_t v, uint64_t a, uint64_t dx) {
 	te = td + ts;
 }
 
-void main(void) {
+/* Plan an exponential-velocity movement at a given vmax, accel-max, and distance */
+void plan_exponential(uint64_t v, uint64_t a, uint64_t j, uint64_t dx) {
+	// TODO: Re-calculate alpha if vmax, accel, or jerk have changed; otherwise, use previous value
+	// Eventually we need to determine the max allowed alpha given multiple axes moving a different speeds, accels, jerks and distances.
+	// For that we need to determine which factor will limit it the most (j[n], a[n]) and then decide the limit.  Or else we need to
+	// calculate amax for each axis and then choose the lowest amax from all axes and use that to plan each axis.
+}
+
+void plan(uint64_t v, uint64_t a, uint64_t dx) {
+	return plan_trapezoidal(v,a,dx);
+}
+
+const char * shortopts = "a:v:d:";
+struct option opts[] = {
+  { "acceleration", required_argument, NULL, 'a' },
+  { "velocity",     required_argument, NULL, 'v' },
+  { "distance",     required_argument, NULL, 'd' },
+};
+
+void do_motion( int v, int a, int d );
+
+void main(int argc, char ** argv) {
+  int c;
+
+  int a=320,v=1000,d=30000;
+  while ((c = getopt_long (argc, argv, shortopts, opts, NULL)) != -1)
+    switch (c) {
+    case 'a': a = abs(atoi(optarg)); break;
+    case 'v': v = abs(atoi(optarg)); break;
+    case 'd': d = abs(atoi(optarg)); break;
+    default:
+      printf("Unexpected result in getopt_long handler");
+      exit(1);
+    }
+
+  do_motion( v, a, d ) ;
+}
+
+void do_motion( int v, int a, int d ) {
 	int tick;
-	int dx;
-	for (dx = 35; dx < 40 ; dx += 20 ) {
-		plan(12800, 320, dx*1000);
-		double pos = 0;
-		uint64_t vprev = 0;
-		int tprev = 0;
-		printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , dx, ts, td, te );
-		printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
-		for (tick = 0 ; tick < te ; tick+=1000 ) {
-			uint64_t v = velocity_profile(tick);
-			pos += (double)(v + vprev)/2.0 * t(tick - tprev) / ((double)f);
-			printf("%u %f %f %f %d\n", tick, t(tick), v/(double)(f), trapezoidal_position(tick), (int)(pos+0.5));
-			vprev = v;
-			tprev = tick;
-		}
+	double pos = 0;
+	uint64_t vprev = 0;
+	int tprev = 0;
+
+	plan(v, a, d);
+
+	printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , d, ts, td, te );
+	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
+	for (tick = 0 ; tick < te ; tick+=1000 ) {
+		uint64_t v = velocity_profile(tick);
+		pos += (double)(v + vprev)/2.0 * t(tick - tprev) / ((double)f);
+		printf("%u %f %f %f %d\n", tick, t(tick), v/(double)(f), trapezoidal_position(tick), (int)(pos+0.5));
+		vprev = v;
+		tprev = tick;
 	}
 
-	exit(0);
+	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
+	printf("# Commanded: dx=%u  T=%u\n" , d, te );
+	printf("#    Actual: dx=%u  T=%u\n" , (int)(pos+0.5), ts, td, tick );
+	if ( (int)(pos+0.5) == d ) exit(0);
+
+	fprintf(stderr, "Did not reach commanded distance.  demand=%u, actual=%lu\n",
+			d, (int)(pos+0.5) ) ;
 }
-
-void old_main(void) {
-  uint64_t start_v = 0 ;
-  uint64_t end_v = 50000 ;
-  uint64_t ticks = 20000000 ;
-
-  uint64_t v;
-  uint64_t x;
-  uint64_t dv = end_v - start_v;
-  uint64_t dt = ticks ;
-  double m = dv;
-  m /= (double)dt;
-
-  // Velocity planner for linear velocity segments for linear approximation of exponential velocity curve; constant acceleration within each segment
-  // v = mx + b
-  // m is acceleration, dv/dt
-  // b is start_velocity
-
-  // We can calculate the ideal velocity at any discrete point in time, and that v will tell us when our next step should occur.
-  // But when we fire that step occurs, we will already be at a new v and so we will be late.
-  // We can find the actual next-step time with increasing accuracy, though.
-  //
-  uint64_t granularity = 1000 ;
-  for ( x = 1 ; x < ticks ; x+= granularity ) {
-    //-- velocity in steps/tick (integer, rounded off)
-    uint64_t v = m*x + start_v;
-    if ( !v ) ++v;
-    
-    // -- Velocity in ticks/step
-    uint64_t t = ticks / v ;
-    //-- Position (ticks-so-far * m) / 2
-    uint64_t dx = ((uint64_t)x*m)/ 2 ;
-    uint64_t nextTick = 1024.0 * ((double)ticks / sqrt((double)x * dv));
-    printf("%u %u %u %u %u\n", x, v, t, dx , nextTick/1024);
-  }
-
-  //  plot "exponential.out" using ($1/20000000):2 with lines title 'Ideal velocity (steps/second)' , '' using ($1/20000000):3 with lines title 'Velocity (ideal) in ticks/step' ,  '' using ($1/20000000):4 with lines title 'Position (steps)' ,'' using ($1/20000000):4 with lines title 'nextTickTime (Ticks)' 
-  //
-  
-  // Position comes from this formula (area under the curve of y=mx+b):
-  //    dx = total_time * slope / 2 + (total_time * start_velocity)
-  //    dx = total_time * ( start_velocity + slope/2 )
-  //    Slope = m = (end_velocity - start_velocity) / total_time
-  //    dx = total_time * start_velocity + (end_velocity - start_velocity)/2
-  //    dx = total_time * start_velocity + end_velocity / 2 - start_velocity/2
-  //    It is the area of the triangle formed by the acceleration (m) plus the rectangle across the start velocity
-
-  //    t0 = time of last step
-  //    v0 = t0 * m + start_v  ; v0 = velocity at last step
-  // first step occurs when dx = 1
-  //    1 = (x*v + ticks) / (2*ticks)
-  //    2*ticks = x*v + ticks
-  //    ticks = x * v ; v =m*x
-  //    ticks / m = x*x
-  //    x = sqrt(ticks/m) ; m = dv / dt
-  //    x = sqrt(dt * ticks / dv) ; dt = ticks
-  //    x = ticks / sqrt(dv)
-  //
-  // Second step when dx = 2
-  //    x = ticks / sqrt(2*dv)
-  //
-}
-
