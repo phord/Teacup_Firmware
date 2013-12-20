@@ -166,6 +166,9 @@ void do_motion( int v, int a, int d ) {
 	uint64_t remainder = divisor/2;  // Forward bias to round up
 	uint64_t vprev = 0;
 	uint64_t tprev = 0;
+//	uint64_t f_inv = (1<<31) / f;  // 1/(2f) = 0x6b, leaving 26 leading zero bits
+//	#define f_inv_shift 51
+//	uint64_t f_inv = (1ULL<<f_inv_shift) / f;  // 1/(2f) * 2^51
 
 	plan(v, a, d);
 
