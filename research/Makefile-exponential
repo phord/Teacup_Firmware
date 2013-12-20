@@ -1,14 +1,22 @@
-default: bin
+default: exponential
 
 .PHONY: plot
 
 all: plot
 
 exponential.trace: exponential
-	./exponential > exponential.trace
+	./exponential > $@
 
-plot: exponential.trace
+exponential-a1000.trace: exponential
+	./exponential --acceleration=1000 > $@
+
+exponential-v20000.trace: exponential
+	./exponential --acceleration=100000 --velocity=20000 --distance=500 > $@
+
+plot: exponential.trace exponential-v20000.trace exponential-a1000.trace
 	gnuplot --persist -e "plot 'exponential.trace' u 2:3 with lines , '' u 2:4 with lines, '' u 2:5 with lines"
+	gnuplot --persist -e "plot 'exponential-a1000.trace' u 2:3 with lines , '' u 2:4 with lines, '' u 2:5 with lines"
+	gnuplot --persist -e "plot 'exponential-v20000.trace' u 2:3 with lines , '' u 2:4 with lines, '' u 2:5 with lines"
 
-exponential: exponential.c
+exponential: exponential.c $(MAKEFILE_LIST)
 	gcc -o exponential exponential.c -lm
