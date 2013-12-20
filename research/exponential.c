@@ -185,6 +185,16 @@ void do_motion( int v, int a, int d ) {
 
 		printf("%u %f %f %f %d %u\n", tick, t(tick), v/(float)(f), trapezoidal_position(tick), pos, dTick );
 
+		//-- Predict when our next step will occur
+		// Next tick occurs (approximately) when
+		//    divisor = remainder + ( v + v + v-vprev ) * dTick
+		//    divisor - remainder = ( v + v + v-vprev ) * dTick
+		//    dTick = ( divisor - remainder ) / ( v + v + v-vprev )
+		//    TODO: Calculate this in terms of ACCELERATION, or calc actual next time by looking ahead to velocity_profile(future)
+		if ( v ) dTick = ( divisor - remainder ) / ( v + v + v-vprev ) / 2 ;
+		if ( dTick > f / 1000 ) dTick = f / 8000 ;
+		else if ( dTick < 300) dTick = 300 ;
+
 		vprev = v;
 		tprev = tick;
 	}
