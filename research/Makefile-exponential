@@ -13,10 +13,21 @@ exponential-a1000.trace: exponential
 exponential-v20000.trace: exponential
 	./exponential --acceleration=100000 --velocity=20000 --distance=500 > $@
 
+test: exponential
+	set -e ; \
+	for DIST in 1 2 3 4 5 10 50 100 10000 100000 ; do \
+	  for ACC in 10 20 50 1000 100000 1000000 ; do \
+	     for VELO in 10 20 50 1000 100000 ; do \
+	       echo "./exponential --acceleration=$$ACC --velocity=$$VELO --distance=$$DIST " ; \
+	       ./exponential --acceleration=$$ACC --velocity=$$VELO --distance=$$DIST > test.trace && tail -n 2 test.trace; \
+	    done ; \
+	  done ; \
+	done
+
 plot: exponential.trace exponential-v20000.trace exponential-a1000.trace
-	gnuplot --persist -e "plot 'exponential.trace' u 2:3 with lines , '' u 2:4 with lines, '' u 2:5 with lines"
-	gnuplot --persist -e "plot 'exponential-a1000.trace' u 2:3 with lines , '' u 2:4 with lines, '' u 2:5 with lines"
-	gnuplot --persist -e "plot 'exponential-v20000.trace' u 2:3 with lines , '' u 2:4 with lines, '' u 2:5 with lines"
+	gnuplot --persist -e "plot 'exponential.trace' u 2:3 with lines t 'Velocity', '' u 2:4 with lines t 'Position (ideal)', '' u 2:5 with lines t 'Position (actual)'"
+	gnuplot --persist -e "plot 'exponential-a1000.trace' u 2:3 with lines t 'Velocity', '' u 2:4 with lines t 'Position (ideal)', '' u 2:5 with lines t 'Position (actual)'"
+	gnuplot --persist -e "plot 'exponential-v20000.trace' u 2:3 with lines t 'Velocity', '' u 2:4 with lines t 'Position (ideal)', '' u 2:5 with lines t 'Position (actual)'"
 
 exponential: exponential.c $(MAKEFILE_LIST)
 	gcc -o exponential exponential.c -lm
