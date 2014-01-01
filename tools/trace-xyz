@@ -1,0 +1,6 @@
+#!/bin/sh
+
+tools/trace-column 2 < $1 > /tmp/$1.x
+tools/trace-column 3 < $1 > /tmp/$1.y
+tools/trace-column 4 < $1 > /tmp/$1.z
+tools/trace-column 5 < $1 > /tmp/$1.e

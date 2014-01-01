@@ -1,0 +1,33 @@
+#!/bin/gnuplot
+
+# This is a companion script to velocity_plot.sh
+#
+# Usage:
+#    mm_per_step=40.0;
+#    vfile='velocity-file.trace';
+#    load 'velocity_plot.gpi'
+#
+
+  set ylabel 'Position';
+  set y2label 'Velocity (mm/minute)'; set ytics nomirror ; set y2tics;
+  set samples 10000 ;
+
+  feedrate2(x) = 3600.0*x/mm_per_step
+  feedrate1(x) = 60.0*x/mm_per_step
+
+  set terminal wxt 0
+  plot vfile u ($1):(feedrate1($3)) with lines t "X-velocity mm/minute" axes x1y2 \
+     , '' u ($1):($2) with lines t "X-position"
+
+  set terminal wxt 1
+  set ylabel 'Acceleration mm/minute^2';
+  set y2label 'Jerk mm/minute^3'; set ytics nomirror ; set y2tics;
+  plot vfile u ($1):(feedrate2($5)*60) with lines t "X-Jerk" axes x1y2 \
+     , '' u ($1):(feedrate2($4)) with lines t "X-acceleration"
+
+#  baseline = 0
+#  band = 10
+#  set terminal wxt 1
+#  plot vfile u ($1):(baseline+band*0.8*$10) with steps t "X-Step", \
+#    '' u ($1):(baseline+band+band*0.8*$18) with steps t "Y-Step", \
+#    '' u ($1):(baseline+2*band+band*0.8*$26) with steps t "Z-Step"
