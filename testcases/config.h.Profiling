@@ -82,7 +82,7 @@
 
 	half-stepping doubles the number, quarter stepping requires * 4, etc.
 
-	valid range = 20 to 4'0960'000 (0.02 to 40960 steps/mm)
+	valid range = 20 to 40'960'000 (0.02 to 40960 steps/mm)
 
 	all numbers are integers, so no decimal point, please :-)
 */
