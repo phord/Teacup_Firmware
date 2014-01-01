@@ -1,0 +1,6 @@
+#!/bin/sh
+
+grep -v -E '^ *#' | cut "-d " -f1,$1 | uniq --skip-fields=1 | tools/microseconds.awk | 
+   tools/deriv.awk | # velocity 
+   tools/deriv.awk | # acceleration
+   tools/deriv.awk   # jerk
