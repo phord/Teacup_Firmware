@@ -47,8 +47,7 @@ uint64_t trapezoidal_velocity( uint64_t now ) {
 	// @param now time of movement in ticks
 	//   acc in steps/sec/sec
 	//   return velocity in f * steps/sec
-	//   steps/sec/sec * ticks / 1000 => ticks.steps/sec/sec / 1000
-	//  Overflows at ~200000 steps/sec
+	//   steps/sec * ticks/sec => ticks.steps/sec/sec
 	return (uint64_t) acc * now ;
 }
 
@@ -89,8 +88,7 @@ float trapezoidal_position( uint64_t now ) {
 	return pos;
 }
 
-// Note: returns ticks/sec * steps/sec / 1000
-//       Overflows at 200000 steps/sec
+// Note: returns ticks/sec * steps/sec
 uint64_t velocity_profile( uint64_t now ) {
 	// dx = steps to move
 	// now = time in secs to find velocity
@@ -128,8 +126,14 @@ void plan_exponential(uint64_t v, uint64_t a, uint64_t j, uint64_t dx) {
 	// calculate amax for each axis and then choose the lowest amax from all axes and use that to plan each axis.
 }
 
+void do_math( uint64_t tick );
+
 void plan(uint64_t v, uint64_t a, uint64_t dx) {
-	return plan_trapezoidal(v,a,dx);
+	plan_trapezoidal(v,a,dx);
+
+	// Prime our calculations
+	do_math(0);
+
 }
 
 const char * shortopts = "a:v:d:";
@@ -159,47 +163,112 @@ void main(int argc, char ** argv) {
 }
 
 
+uint64_t math_period ; //= f * 2 / 1000 ;   // Ticks per 2ms
+// Do the math for our next step(s)
+uint64_t vNow = 0;
+uint64_t vNext = 0;
+int64_t vDelta = 0 ;
+uint32_t dStep = 0;
+uint32_t dStepNext = 0;
+int32_t dsDelta = 0;
+void do_math( uint64_t tick ) {
+	const uint32_t nSteps_n = math_period * 2;
+	uint32_t nSteps_d ;
+
+	//-- This is our first step
+	if ( !dStep ) {
+		vNext = velocity_profile(tick);
+		dStepNext = f*f / (vNext?vNext:1) ;
+	}
+
+// FIXME: On subsequent calls, we need to compensate for the amount of time we have already spent since the last step.
+// This is compensated with the integration in move's loop, but our first step after this code is "wrong" by the number
+// of ticks we already spent since the last
+	//-- Use precalculated values for this math_period
+	vNow = vNext;
+	dStep = dStepNext;
+
+	//-- Calculate velocity/step values for next period
+	vNext = velocity_profile(tick + math_period);
+	dStepNext = f*f / (vNext?vNext:1) ;
+
+	// Number of steps in this period = nSteps_n / nSteps_d
+	nSteps_d = (dStepNext + dStep);
+
+	// dStep and Velocity change for each step (linear approximation)
+	dsDelta = (((int32_t)dStepNext - (int32_t)dStep) * (int32_t)nSteps_d + (int32_t)nSteps_n/2) / (int32_t)nSteps_n ;
+	vDelta = ((vNext - vNow) * nSteps_d + nSteps_n/2) / nSteps_n ;
+
+
+	printf("# %u n=%u d=%u v(%f %f %f) ds(%u %u %d)\n", 
+			tick, nSteps_n , nSteps_d , 
+			(float)vNow/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f, 
+			dStep, dStepNext, dsDelta );
+}
+
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#define MAX(a,b) ((a)>(b)?(a):(b))
+
 void do_motion( int v, int a, int d ) {
-	uint64_t tick, dTick=1000;
+	uint64_t tick, dTick=0, tStep=0;
+	uint64_t math_period_remainder=0;
 	uint64_t pos = 0;
-	const uint64_t divisor = f*f*2;    // Common denominator
+	const uint64_t divisor = f*f;    // Common denominator
 	uint64_t remainder = divisor/2;  // Forward bias to round up
-	uint64_t vprev = 0;
-	uint64_t tprev = 0;
 //	uint64_t f_inv = (1<<31) / f;  // 1/(2f) = 0x6b, leaving 26 leading zero bits
 //	#define f_inv_shift 51
 //	uint64_t f_inv = (1ULL<<f_inv_shift) / f;  // 1/(2f) * 2^51
+
+	// Const, but cannot be declared const yet
+	math_period = f * 2 / 1000 ;   // Ticks per 2ms
 
 	plan(v, a, d);
 
 	printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , d, ts, td, te );
 	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
 	for (tick = 0 ; tick < te ; tick+=dTick ) {
-		uint64_t v = velocity_profile(tick);
+
+		uint64_t pTick = dTick ;
+
+		printf("# ==> %u %f %f %f %d %u  (%u, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+
+		// Periodic counter for math callback
+		math_period_remainder += dTick ;
+
 		// Distance moved in steps*(ticks/sec)
-		remainder += (v + vprev) * (tick - tprev) ;
-		if ( remainder > divisor ) {
+		remainder += vNow * dTick ;
+
+		// Time for next step to occur
+		dTick = math_period - math_period_remainder ;
+		// This shoulda worked, but it made things much worse...?
+		dTick = MIN( (tick-tStep) + dStep , dTick);
+		dTick = MIN( dStep , dTick);
+		dTick = MAX( dTick , 300 ) ;
+
+		// Linear approximation (close enough in small bursts)
+		if ( dsDelta > 0 || dStep > -dsDelta ) dStep += dsDelta ;
+		if (  vDelta > 0 || vNow  > -vDelta  )  vNow += vDelta ;
+
+		while ( remainder >= divisor ) {
+			//=== [STEP] ===
 			++pos ;
 			remainder -= divisor;
+			printf("%u %f %f %f %d %u  (%u, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+			tStep = tick;
 		}
+
+		//------------------------------------------------------------------------------ ENABLE INTERRUPTS
+
 		if ( remainder > divisor ) {
 			fprintf(stderr, "Step undershoot:  t=%lu  pos=%lu  remainder=%u\n", tick, pos , remainder - divisor);
 		}
 
-		printf("%u %f %f %f %d %u\n", tick, t(tick), v/(float)(f), trapezoidal_position(tick), pos, dTick );
+		if (math_period_remainder >= math_period) {
+			do_math(tick);
+			// Findings:  The first dTick after a call to do_math is too short.  It causes a premature "extra" step to occur.
+			math_period_remainder -= math_period;
+		}
 
-		//-- Predict when our next step will occur
-		// Next tick occurs (approximately) when
-		//    divisor = remainder + ( v + v + v-vprev ) * dTick
-		//    divisor - remainder = ( v + v + v-vprev ) * dTick
-		//    dTick = ( divisor - remainder ) / ( v + v + v-vprev )
-		//    TODO: Calculate this in terms of ACCELERATION, or calc actual next time by looking ahead to velocity_profile(future)
-		if ( v ) dTick = ( divisor - remainder ) / ( v + v + v-vprev ) / 2 ;
-		if ( dTick > f / 1000 ) dTick = f / 8000 ;
-		else if ( dTick < 300) dTick = 300 ;
-
-		vprev = v;
-		tprev = tick;
 	}
 
 	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
