@@ -199,6 +199,8 @@ void do_math( uint64_t tick ) {
 	dsDelta = (((int32_t)dStepNext - (int32_t)dStep) * (int32_t)nSteps_d + (int32_t)nSteps_n/2) / (int32_t)nSteps_n ;
 	vDelta = ((vNext - vNow) * nSteps_d + nSteps_n/2) / nSteps_n ;
 
+	vDelta = 0 ; // vDelta calculation is broken.  Short-circuit it.
+	dsDelta = 0 ; // dsDelta is too
 
 	printf("# %u n=%u d=%u v(%f %f %f) ds(%u %u %d)\n", 
 			tick, nSteps_n , nSteps_d , 
