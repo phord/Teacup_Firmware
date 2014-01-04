@@ -90,8 +90,8 @@
 /// used for G0 rapid moves and as a cap for all other feedrates
 #define	MAXIMUM_FEEDRATE_X			9000
 #define	MAXIMUM_FEEDRATE_Y			9000          // Safely reaches 12000 with heatbed attached and ACCELERATION_RAMPING
-#define	MAXIMUM_FEEDRATE_Z			50
-#define	MAXIMUM_FEEDRATE_E			1500 // 75 is sustainable, but we need faster for reversing (anti-ooze)
+#define	MAXIMUM_FEEDRATE_Z			250
+#define	MAXIMUM_FEEDRATE_E			20500    // 1500 // 75 is sustainable, but we need faster for reversing (anti-ooze)
 
 /// used when searching endstops and as default feedrate
 #define	SEARCH_FEEDRATE_X			150
@@ -184,7 +184,7 @@
   transition between moves instead of performing a dead stop every move.
   Enabling look-ahead requires about 3600 bytes of flash memory.
 */
-#define LOOKAHEAD
+//#define LOOKAHEAD
 
 /** \def MAX_JERK_X
     \def MAX_JERK_Y
@@ -212,9 +212,9 @@
   Sane values: 0 to 400
   Valid range: 0 to 65535
 */
-#define MAX_JERK_X 20
-#define MAX_JERK_Y 20
-#define MAX_JERK_Z 0
+#define MAX_JERK_X 10
+#define MAX_JERK_Y 10
+#define MAX_JERK_Z 200
 #define MAX_JERK_E 3000
 
 
