@@ -10,7 +10,7 @@
 
 const uint16_t temptable[NUMTABLES][NUMTEMPS][2] PROGMEM = {
 {
-#include "Thermistor_head.h"
+#include "Thermistor_head_e3d.h"
 },
 
 {
