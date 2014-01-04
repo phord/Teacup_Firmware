@@ -35,7 +35,7 @@ uint8_t	mb_tail = 0;
 /// slot will only be modified in interrupts until the slot is
 /// is no longer live.
 /// The size does not need to be a power of 2 anymore!
-DDA _BSS(movebuffer[MOVEBUFFER_SIZE]);
+DDA BSS movebuffer[MOVEBUFFER_SIZE];
 
 /// check if the queue is completely full
 uint8_t queue_full() {
@@ -112,6 +112,10 @@ void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 	h &= (MOVEBUFFER_SIZE - 1);
 
 	DDA* new_movebuffer = &(movebuffer[h]);
+
+  // Initialise queue entry to a known state. This also clears flags like
+  // dda->live, dda->done and dda->wait_for_temp.
+  new_movebuffer->allflags = 0;
 
   if (t != NULL) {
 		new_movebuffer->endstop_check = endstop_check;

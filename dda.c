@@ -42,20 +42,20 @@
 
 /// \var startpoint
 /// \brief target position of last move in queue
-TARGET _BSS(startpoint);
+TARGET BSS startpoint;
 
 /// \var startpoint_steps
 /// \brief target position of last move in queue, expressed in steps
-TARGET _BSS(startpoint_steps);
+TARGET BSS startpoint_steps;
 
 /// \var current_position
 /// \brief actual position of extruder head
 /// \todo make current_position = real_position (from endstops) + offset from G28 and friends
-TARGET _BSS(current_position);
+TARGET BSS current_position;
 
 /// \var move_state
 /// \brief numbers for tracking the current state of movement
-MOVE_STATE _BSS(move_state);
+MOVE_STATE BSS move_state;
 
 /*! Inititalise DDA movement structures
 */
@@ -120,15 +120,10 @@ void dda_create(DDA *dda, TARGET *target) {
   if (dda->waitfor_temp)
     return;
 
-  // Initialise DDA to a known state. This also clears flags like
-  // dda->live, dda->done and dda->wait_for_temp.
-	dda->allflags = 0;
-
 	if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
     sersendf_P(PSTR("\nCreate: X %lq  Y %lq  Z %lq  F %lu\n"),
                dda->endpoint.X, dda->endpoint.Y,
                dda->endpoint.Z, dda->endpoint.F);
-
 
 	// we end at the passed target
 	memcpy(&(dda->endpoint), target, sizeof(TARGET));

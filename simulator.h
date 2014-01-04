@@ -40,11 +40,11 @@
 #define enable_transmit()
 #undef USB_SERIAL
 
-#undef _BSS
-#ifdef __MACH__  // Mac
-  #define _BSS(var) var __attribute__ ((__section__ ("__DATA,.bss")))
+#undef BSS
+#ifdef __MACH__  // Mac OS X
+  #define BSS __attribute__ ((__section__ ("__DATA,.bss")))
 #else
-  #define _BSS(var) var __attribute__ ((__section__ (".bss")))
+  #define BSS __attribute__ ((__section__ (".bss")))
 #endif
 
 #ifndef _SIMULATOR_H
