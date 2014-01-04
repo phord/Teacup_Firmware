@@ -76,8 +76,8 @@
 /// http://blog.arcol.hu/?p=157 may help with this one
 //#define	STEPS_PER_M_E					1813  // Measured extruded value (NOT feedstock)
 //#define	STEPS_PER_M_E					75236  // Calculated from here http://reprap.org/wiki/Volumetric_Dimension_settings  (was 96271)
-//#define	STEPS_PER_M_E				(8*43000*56/20*21/24)  // Empirically determined (mm of feedstock, 16th-steps)
-#define	STEPS_PER_M_E					2*(8*43000*56/20*21/24)  // (mm of feedstock, 32-steps)
+#define	STEPS_PER_M_E				(8*43000*56/20*21/24)  // Empirically determined (mm of feedstock, 16th-steps)
+//#define	STEPS_PER_M_E					2*(8*43000*56/20*21/24)  // (mm of feedstock, 32-steps)
 
 
 /*
@@ -177,14 +177,14 @@
 
 		// TODO: figure out how to add acceleration to this algorithm
 */
-//#define ACCELERATION_TEMPORAL
+// #define ACCELERATION_TEMPORAL
 
 /** \def LOOKAHEAD
   Define this to enable look-ahead during *ramping* acceleration to smoothly
   transition between moves instead of performing a dead stop every move.
   Enabling look-ahead requires about 3600 bytes of flash memory.
 */
-//#define LOOKAHEAD
+// #define LOOKAHEAD
 
 /** \def MAX_JERK_X
     \def MAX_JERK_Y
@@ -208,14 +208,14 @@
   G-code are small and your printer runs through entire curves full speed,
   there's no point in raising the values.
 
-  Units: mm/min    // TODO: Should be mm/s^2 or mm/min^2
+  Units: mm/min
   Sane values: 0 to 400
   Valid range: 0 to 65535
 */
-#define MAX_JERK_X 10
-#define MAX_JERK_Y 10
-#define MAX_JERK_Z 200
-#define MAX_JERK_E 3000
+#define MAX_JERK_X 20
+#define MAX_JERK_Y 20
+#define MAX_JERK_Z 0
+#define MAX_JERK_E 20
 
 
 

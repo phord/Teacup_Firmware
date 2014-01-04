@@ -73,10 +73,6 @@ typedef struct {
 	/// counts actual steps done
 	uint32_t					step_no;
 	#endif
-  #ifdef ACCELERATION_CLOCK
-  uint16_t          time_current;
-  uint8_t           ticks_since_step;
-  #endif
 	#ifdef ACCELERATION_TEMPORAL
 	uint32_t					x_time; ///< time of the last x step
 	uint32_t					y_time; ///< time of the last y step
@@ -167,15 +163,6 @@ typedef struct {
   uint8_t           id;
   #endif
 	#endif
-  #ifdef ACCELERATION_CLOCK
-  uint16_t          F_start;
-  uint16_t          F_end;
-  uint16_t          F_max;
-  uint16_t          time_accel; ///< in clock ticks (1ms or 2ms)
-  uint16_t          time_decel; ///< in clock ticks (1ms or 2ms)
-  uint16_t          time_total; ///< in clock ticks (1ms or 2ms)
-  uint32_t          f_to_c;
-  #endif
 	#ifdef ACCELERATION_TEMPORAL
 	uint32_t					x_step_interval; ///< time between steps on X axis
 	uint32_t					y_step_interval; ///< time between steps on Y axis
