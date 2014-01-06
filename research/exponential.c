@@ -163,17 +163,22 @@ void main(int argc, char ** argv) {
 }
 
 
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#define MAX(a,b) ((a)>(b)?(a):(b))
+
 uint64_t math_period ; //= f * 2 / 1000 ;   // Ticks per 2ms
 // Do the math for our next step(s)
+uint64_t vPrev = 0;
 uint64_t vNow = 0;
 uint64_t vNext = 0;
 int64_t vDelta = 0 ;
 uint32_t dStep = 0;
 uint32_t dStepNext = 0;
+uint32_t dStepPrev = 0;
 int32_t dsDelta = 0;
 void do_math( uint64_t tick ) {
 	const uint32_t nSteps_n = math_period * 2;
-	uint32_t nSteps_d ;
+	uint32_t nSteps_d = 0 ;
 
 	//-- This is our first step
 	if ( !dStep ) {
@@ -185,31 +190,37 @@ void do_math( uint64_t tick ) {
 // This is compensated with the integration in move's loop, but our first step after this code is "wrong" by the number
 // of ticks we already spent since the last
 	//-- Use precalculated values for this math_period
-	vNow = vNext;
-	dStep = dStepNext;
+	vPrev = vNext;
+	dStepPrev = dStepNext;
 
 	//-- Calculate velocity/step values for next period
 	vNext = velocity_profile(tick + math_period);
 	dStepNext = f*f / (vNext?vNext:1) ;
 
-	// Number of steps in this period = nSteps_n / nSteps_d
-	nSteps_d = (dStepNext + dStep);
+  vDelta = 0 ;
+  dsDelta = 0 ;
 
-	// dStep and Velocity change for each step (linear approximation)
-	dsDelta = (((int32_t)dStepNext - (int32_t)dStep) * (int32_t)nSteps_d + (int32_t)nSteps_n/2) / (int32_t)nSteps_n ;
-	vDelta = ((vNext - vNow) * nSteps_d + nSteps_n/2) / nSteps_n ;
+	// This is too slow and expensive.  Reduce and remove some division to make it AVR-friendly.
+	// Another idea: store f*dsDelta instead (or some 'multiplier', say 'math_period'),
+  //    and then use addition/remainder method to determine when to advance and by how much
+	dStep = (dStepNext + dStepPrev)/2;
 
-	vDelta = 0 ; // vDelta calculation is broken.  Short-circuit it.
-	dsDelta = 0 ; // dsDelta is too
+	int64_t nSteps = (math_period + dStep/2 ) / dStep ;
+	if (nSteps > 1) {
+	  dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / nSteps ;
+    vDelta = ((int64_t)vNext - (int64_t)vPrev) / nSteps ;
+	}
 
-	printf("# %u n=%u d=%u v(%f %f %f) ds(%u %u %d)\n",
-			tick, nSteps_n , nSteps_d ,
-			(float)vNow/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f,
-			dStep, dStepNext, dsDelta );
+  dStep = dStepPrev;
+  vNow = vPrev;
+
+  printf("# %u "
+         //"n=%u d=%u "
+         "v(%f %f %f) ds(%u %u %u %d)\n",
+			tick, // nSteps_n , nSteps_d ,
+			(float)vPrev/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f,
+			dStep, dStepPrev, dStepNext, dsDelta );
 }
-
-#define MIN(a,b) ((a)<(b)?(a):(b))
-#define MAX(a,b) ((a)>(b)?(a):(b))
 
 void do_motion( int v, int a, int d ) {
 	uint64_t tick, dTick=0, tStep=0;
@@ -231,6 +242,7 @@ void do_motion( int v, int a, int d ) {
 	for (tick = 0 ; tick < te ; tick+=dTick ) {
 
 		uint64_t pTick = dTick ;
+		static uint64_t v0 = 0;
 
 		printf("# ==> %u %f %f %f %d %u  (%u, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
 
@@ -238,26 +250,45 @@ void do_motion( int v, int a, int d ) {
 		math_period_remainder += dTick ;
 
 		// Distance moved in steps*(ticks/sec)
-		remainder += vNow * dTick ;
+		remainder += dTick * (v0 + vNow) / 2;
+		v0 = vNow ;
 
+    // TODO: (Genius!)
+    // If it is not time to step now, we can estimate when it will be time to step based on the remainder.
+    // In reality, our next tick time is (divisor - remainder) / ((vNow + vThen)/2)  (TODO: Verify the units here)
+    // We do not know vThen, but we know it is relatively close to vPrev.  Maybe we can estimate with (vPrev + vPrev/8).
+    // This "genius" plan involves division, but the division could be done in do_math since it is "1/vNow".
+    // Can we come up with a constant representation of 1/vPrev that we can multiply by (div-r) to get the updated step time?
+    //    if ( remainder < divisor ) ...
+
+    // HACK: Record interim progress
+    if ( remainder < divisor )
+      printf(" %u %f %f %f %f %d %u  %u, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+
+    while ( remainder >= divisor ) {
+      //=== [STEP] ===
+      ++pos ;
+      remainder -= divisor;
+      printf("%u %f %f %f %f %d %u  %u, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+      tStep = tick;
+
+      // Linear approximation (close enough in small bursts)
+      if ( dsDelta > 0 || dStep > -dsDelta ) dStep += dsDelta ;
+      if (  vDelta > 0 || vNow  > -vDelta  )  vNow += vDelta ;
+    }
+
+    printf("#     tick=%u remainder=%u  tStep=%u  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
 		// Time for next step to occur
-		dTick = math_period - math_period_remainder ;
-		// This shoulda worked, but it made things much worse...?
-		dTick = MIN( (tick-tStep) + dStep , dTick);
-		dTick = MIN( dStep , dTick);
+    dTick = math_period / 4 ;
+    if ( math_period >  math_period_remainder + 1000)
+      dTick = math_period - math_period_remainder ;
+    printf("==> dTick=%u  ",dTick ) ;
+    uint64_t nextStep     = tStep + dStep;
+    if ( tick + dTick > nextStep ) dTick = nextStep - tick ;
+		if (dTick > nextStep ) dTick = 400 ; // overflow: we should have ticked in the past?
+    printf("==> dTick=%u  ",dTick ) ;
 		dTick = MAX( dTick , 300 ) ;
-
-		// Linear approximation (close enough in small bursts)
-		if ( dsDelta > 0 || dStep > -dsDelta ) dStep += dsDelta ;
-		if (  vDelta > 0 || vNow  > -vDelta  )  vNow += vDelta ;
-
-		while ( remainder >= divisor ) {
-			//=== [STEP] ===
-			++pos ;
-			remainder -= divisor;
-			printf("%u %f %f %f %d %u  (%u, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
-			tStep = tick;
-		}
+    printf("==> dTick=%u\n",dTick ) ;
 
 		//------------------------------------------------------------------------------ ENABLE INTERRUPTS
 
