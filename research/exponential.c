@@ -214,7 +214,7 @@ void do_math( uint64_t tick ) {
   dStep = dStepPrev;
   vNow = vPrev;
 
-  printf("# %u "
+  printf("# %lu "
          //"n=%u d=%u "
          "v(%f %f %f) ds(%u %u %u %d)\n",
 			tick, // nSteps_n , nSteps_d ,
@@ -237,14 +237,14 @@ void do_motion( int v, int a, int d ) {
 
 	plan(v, a, d);
 
-	printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , d, ts, td, te );
+	printf("# dx=%u  Ts=%lu  Td=%lu  Te=%lu\n" , d, ts, td, te );
 	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
 	for (tick = 0 ; tick < te ; tick+=dTick ) {
 
 		uint64_t pTick = dTick ;
 		static uint64_t v0 = 0;
 
-		printf("# ==> %u %f %f %f %d %u  (%u, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+		printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
 
 		// Periodic counter for math callback
 		math_period_remainder += dTick ;
@@ -253,7 +253,7 @@ void do_motion( int v, int a, int d ) {
 		remainder += dTick * (v0 + vNow) / 2;
 		v0 = vNow ;
 
-    // TODO: (Genius!)
+    // TODO: (Genius?!)
     // If it is not time to step now, we can estimate when it will be time to step based on the remainder.
     // In reality, our next tick time is (divisor - remainder) / ((vNow + vThen)/2)  (TODO: Verify the units here)
     // We do not know vThen, but we know it is relatively close to vPrev.  Maybe we can estimate with (vPrev + vPrev/8).
@@ -263,13 +263,13 @@ void do_motion( int v, int a, int d ) {
 
     // HACK: Record interim progress
     if ( remainder < divisor )
-      printf(" %u %f %f %f %f %d %u  %u, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
 
     while ( remainder >= divisor ) {
       //=== [STEP] ===
       ++pos ;
       remainder -= divisor;
-      printf("%u %f %f %f %f %d %u  %u, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+      printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
       tStep = tick;
 
       // Linear approximation (close enough in small bursts)
@@ -277,23 +277,23 @@ void do_motion( int v, int a, int d ) {
       if (  vDelta > 0 || vNow  > -vDelta  )  vNow += vDelta ;
     }
 
-    printf("#     tick=%u remainder=%u  tStep=%u  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
+    printf("#     tick=%lu remainder=%lu  tStep=%lu  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
 		// Time for next step to occur
     dTick = math_period / 4 ;
     if ( math_period >  math_period_remainder + 1000)
       dTick = math_period - math_period_remainder ;
-    printf("==> dTick=%u  ",dTick ) ;
+    printf("==> dTick=%lu  ",dTick ) ;
     uint64_t nextStep     = tStep + dStep;
     if ( tick + dTick > nextStep ) dTick = nextStep - tick ;
-		if (dTick > nextStep ) dTick = 400 ; // overflow: we should have ticked in the past?
-    printf("==> dTick=%u  ",dTick ) ;
-		dTick = MAX( dTick , 300 ) ;
-    printf("==> dTick=%u\n",dTick ) ;
+		if (dTick > nextStep ) dTick = 1001 ; // overflow: we should have ticked in the past?
+    printf("==> dTick=%lu  ",dTick ) ;
+		dTick = MAX( dTick , 1000 ) ;
+    printf("==> dTick=%lu\n",dTick ) ;
 
 		//------------------------------------------------------------------------------ ENABLE INTERRUPTS
 
 		if ( remainder > divisor ) {
-			fprintf(stderr, "Step undershoot:  t=%lu  pos=%lu  remainder=%u\n", tick, pos , remainder - divisor);
+			fprintf(stderr, "Step undershoot:  t=%lu  pos=%lu  remainder=%lu\n", tick, pos , remainder - divisor);
 		}
 
 		if (math_period_remainder >= math_period) {
@@ -305,8 +305,8 @@ void do_motion( int v, int a, int d ) {
 	}
 
 	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
-	printf("# Commanded: dx=%u  T=%u\n" , d, te );
-	printf("#    Actual: dx=%u  T=%u\n" , pos, tick );
+	printf("# Commanded: dx=%u  T=%lu\n" , d, te );
+	printf("#    Actual: dx=%lu  T=%lu\n" , pos, tick );
 	if ( pos == d ) exit(0);
 
 	fprintf(stderr, "Did not reach commanded distance.  demand=%u, actual=%lu\n",
