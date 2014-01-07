@@ -166,18 +166,16 @@ void main(int argc, char ** argv) {
 
 uint64_t math_period ; //= f * 2 / 1000 ;   // Ticks per 2ms
 // Do the math for our next step(s)
-uint64_t vPrev = 0;
 uint64_t vNow = 0;
 uint64_t vNext = 0;
 int64_t vDelta = 0 ;
 uint32_t dStep = 0;
-uint32_t dStepNext = 0;
-uint32_t dStepPrev = 0;
 int32_t dsDelta = 0;
 
 void do_math( uint64_t tick ) {
-	const uint32_t nSteps_n = math_period * 2;
-	uint32_t nSteps_d = 0 ;
+  static uint32_t dStepNext = 0;
+  uint32_t dStepPrev = 0;
+  uint64_t vPrev = 0;
 
 	//-- This is our first step
 	if ( !dStep ) {
@@ -185,9 +183,6 @@ void do_math( uint64_t tick ) {
 		dStepNext = f*f / (vNext?vNext:1) ;
 	}
 
-// FIXME: On subsequent calls, we need to compensate for the amount of time we have already spent since the last step.
-// This is compensated with the integration in move's loop, but our first step after this code is "wrong" by the number
-// of ticks we already spent since the last
 	//-- Use precalculated values for this math_period
 	vPrev = vNext;
 	dStepPrev = dStepNext;
@@ -196,18 +191,13 @@ void do_math( uint64_t tick ) {
 	vNext = velocity_profile(tick + math_period);
 	dStepNext = f*f / (vNext?vNext:1) ;
 
-  vDelta = 0 ;
-  dsDelta = 0 ;
-
 	// This is too slow and expensive.  Reduce and remove some division to make it AVR-friendly.
 	// Another idea: store f*dsDelta instead (or some 'multiplier', say 'math_period'),
   //    and then use addition/remainder method to determine when to advance and by how much
 	dStep = (dStepNext + dStepPrev)/2;
 
 	int64_t nSteps = (math_period + dStep/2 ) / dStep ;
-	if (nSteps > 1) {
-	  dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / nSteps ;
-	}
+  dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / (nSteps + 2);
 
 	// vDelta is per-period, not per-step
   vDelta = ((int64_t)vNext - (int64_t)vPrev) ;
@@ -242,33 +232,32 @@ void do_motion( int v, int a, int d ) {
 	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
 	for (tick = 0 ; tick < te ; tick+=dTick ) {
 
-		uint64_t pTick = dTick ;
 		static uint64_t v0 = 0;
 
-		printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder/f);
+		printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 
 		// Periodic counter for math callback
 		math_period_remainder += dTick ;
 
 		v0 = vNow ;
-    if (  vDelta > 0 || vNow  > -vDelta  )  vNow += (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
+    vNow += (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
 
     // Integrate: Distance moved in steps*(ticks/sec)
     remainder += dTick * (v0 + vNow) / 2;
 
     // HACK: Record interim progress
     if ( remainder + min_tick*f < divisor )
-      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder/f);
+      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 
     if ( remainder + min_tick*f >= divisor ) {
       //=== [STEP] ===
       ++pos ;
       remainder -= divisor;
-      printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder/f);
+      printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
       tStep = tick;
 
       // Linear approximation (close enough in small bursts)
-      if ( dsDelta > 0 || dStep > -dsDelta ) dStep += dsDelta ;
+      dStep += dsDelta ;
     }
 
     printf("#     tick=%lu remainder=%lu  tStep=%lu  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
