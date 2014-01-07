@@ -207,9 +207,10 @@ void do_math( uint64_t tick ) {
 	int64_t nSteps = (math_period + dStep/2 ) / dStep ;
 	if (nSteps > 1) {
 	  dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / nSteps ;
-    vDelta = ((int64_t)vNext - (int64_t)vPrev) / nSteps ;
 	}
 
+	// vDelta is per-period, not per-step
+  vDelta = ((int64_t)vNext - (int64_t)vPrev) ;
 
   vNow = vPrev;
 
@@ -225,8 +226,9 @@ void do_motion( int v, int a, int d ) {
 	uint64_t tick, dTick=0, tStep=0;
 	uint64_t math_period_remainder=0;
 	uint64_t pos = 0;
-	const uint64_t divisor = f*f;    // Common denominator
-	uint64_t remainder = divisor/2;  // Forward bias to round up
+	const int64_t divisor = f*f;    // Common denominator
+	int64_t remainder = divisor/2;  // Forward bias to round up
+  uint64_t min_tick = f*50/1000000;// Minimum timer ISR cycle time (50us)
 //	uint64_t f_inv = (1<<31) / f;  // 1/(2f) = 0x6b, leaving 26 leading zero bits
 //	#define f_inv_shift 51
 //	uint64_t f_inv = (1ULL<<f_inv_shift) / f;  // 1/(2f) * 2^51
@@ -248,15 +250,17 @@ void do_motion( int v, int a, int d ) {
 		// Periodic counter for math callback
 		math_period_remainder += dTick ;
 
-		// Integrate: Distance moved in steps*(ticks/sec)
-		remainder += dTick * (v0 + vNow) / 2;
 		v0 = vNow ;
+    if (  vDelta > 0 || vNow  > -vDelta  )  vNow += (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
+
+    // Integrate: Distance moved in steps*(ticks/sec)
+    remainder += dTick * (v0 + vNow) / 2;
 
     // HACK: Record interim progress
-    if ( remainder < divisor )
+    if ( remainder + min_tick*f < divisor )
       printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder/f);
 
-    while ( remainder >= divisor ) {
+    if ( remainder + min_tick*f >= divisor ) {
       //=== [STEP] ===
       ++pos ;
       remainder -= divisor;
@@ -265,20 +269,20 @@ void do_motion( int v, int a, int d ) {
 
       // Linear approximation (close enough in small bursts)
       if ( dsDelta > 0 || dStep > -dsDelta ) dStep += dsDelta ;
-      if (  vDelta > 0 || vNow  > -vDelta  )  vNow += vDelta ;
     }
 
     printf("#     tick=%lu remainder=%lu  tStep=%lu  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
-		// Time for next step to occur
-    dTick = math_period / 4 ;
-    if ( math_period >  math_period_remainder + 1000)
+
+    // Time for next step to occur
+    dTick = math_period ; // / 4 ;
+    if ( dTick >  math_period - math_period_remainder )
       dTick = math_period - math_period_remainder ;
     printf("==> dTick=%lu  ",dTick ) ;
     uint64_t nextStep     = tStep + dStep;
     if ( tick + dTick > nextStep ) dTick = nextStep - tick ;
-		if (dTick > nextStep ) dTick = 1001 ; // overflow: we should have ticked in the past?
+		if (dTick > nextStep ) dTick = min_tick+1; // overflow: we should have ticked in the past?
     printf("==> dTick=%lu  ",dTick ) ;
-		dTick = MAX( dTick , 1000 ) ;
+		dTick = MAX( dTick , min_tick ) ;
     printf("==> dTick=%lu\n",dTick ) ;
 
 		//------------------------------------------------------------------------------ ENABLE INTERRUPTS
