@@ -199,6 +199,28 @@ uint64_t nextStep( uint64_t guess , uint64_t now ) {
     uint64_t check = (f*f - remain)/v;
     printf("  check=%lu", check);
 
+    if ( check < math_period ) {
+      // Find our error and leave it in the remainder for next time
+      v = (velocity_profile(now) + velocity_profile(now + check)) / 2 ;
+      remain = f*f;
+      remain -= v*check;
+    }
+    printf ("   r=%f\n", (float)remain/f/f);
+    return check ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     uint64_t vx = (velocity_profile(now) + velocity_profile(now + check)) / 2 ;
     if (!vx) vx=1;
     check = (f*f - remain)/vx;
