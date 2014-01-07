@@ -30,4 +30,4 @@ plot: exponential.trace exponential-v20000.trace exponential-a1000.trace
 	gnuplot --persist -e "plot 'exponential-v20000.trace' u 2:3 with lines t 'Velocity', '' u 2:4 with lines t 'Position (ideal)', '' u 2:5 with lines t 'Position (actual)'"
 
 exponential: exponential.c $(MAKEFILE_LIST)
-	gcc -o exponential exponential.c -lm
+	gcc -ggdb -o exponential exponential.c -lm
