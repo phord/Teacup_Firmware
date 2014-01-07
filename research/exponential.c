@@ -18,12 +18,11 @@ uint64_t f = 20000000;
 
 // ts = time to achieve vmax
 uint64_t Ts() {
-	// Rampup time for trapezoidal velocity (max constant acceleration)
-	// acc * Ts = vmax
-	// ts = vmax / acc
-	// Note: overflow when (vmax / acc) > 200, like "vmax=2500 acc=10"
-	//       vmax=2500 is FEEDRATE=F150000, so... insane.
-	return (float)vmax * (float)f / (float)acc ;
+  // Rampup time for trapezoidal velocity (max constant acceleration)
+  // acc (steps/sec/sec) * (Ts/f) secs  = vmax (steps/sec)
+  // ts/f = vmax / acc
+  // ts = f*vmax / acc
+  return vmax * f / acc ;
 }
 
 // ts = time to achieve vmax
@@ -61,31 +60,30 @@ uint64_t ts ;
 uint64_t te ;
 
 float trapezoidal_position( uint64_t now ) {
-	float pos ;
+	uint64_t pos ;
 
 	//-- Constrain to our move time
 	if ( now > te ) now = te ;
 
-	float rampup = t(now);
-	if ( rampup > t(ts)) rampup = t(ts) ;
-	float cruise = 0;
-	if ( t(now) >= t(td) || t(now) > t(ts) ) cruise = t(now) - t(ts) ;
-	if ( cruise < 0 ) cruise = 0;
-	float rampdown = t(now) - t(td);
-	if ( rampdown < 0 ) rampdown = 0 ;
+	uint64_t rampup = now;
+	if ( rampup > ts) rampup = ts ;
+	uint64_t cruise = 0;
+	if ( now > ts ) cruise = now - ts ;
+	uint64_t rampdown = now - td;
+	if ( now < td ) rampdown = 0 ;
 
 	// Rampup period
-	pos = (float)acc * rampup * rampup / 2.0;
+	pos = acc * rampup * rampup / 2;
 
 	// Cruise period
-	pos += cruise * (float)vmax;
+	pos += cruise * vmax * f;
 
 	// Rampdown period / idle period
-	pos -= (float)acc * rampdown * rampdown / 2.0;
+	pos -= acc * rampdown * rampdown / 2;
 
 //	printf("=== %f %f %u %f %f %f ===\n", t(now), rampup, (uint64_t) (rampup * f), cruise, rampdown, pos);
 
-	return pos;
+	return (float)pos/f/f;
 }
 
 // Note: returns ticks/sec * steps/sec
