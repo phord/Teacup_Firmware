@@ -1,6 +1,15 @@
 default: exponential
 
 .PHONY: plot
+.PHONY: exponential.plot exponential-v20000.plot exponential-a1000.plot
+
+GNUPLOT_FLAGS = --persist -e "$(GNUPLOT_SCRIPT)"
+GNUPLOT_SCRIPT = plot '$(@:.plot=.trace)' 
+GNUPLOT_SCRIPT +=   u 1:3 with steps t 'VelocityNext'
+GNUPLOT_SCRIPT += , '' u 1:4 with steps t 'VelocityNow'
+GNUPLOT_SCRIPT += , '' u 1:5 with lines t 'Position (ideal)'
+GNUPLOT_SCRIPT += , '' u 1:(\$$5 - \$$6) with steps t 'Position error'
+GNUPLOT_SCRIPT += , '' u 1:6 with steps t 'Position (actual)'
 
 all: plot
 
@@ -24,10 +33,13 @@ test: exponential
 	  done ; \
 	done
 
-plot: exponential.trace exponential-v20000.trace exponential-a1000.trace
-	gnuplot --persist -e "plot 'exponential.trace' u 2:3 with lines t 'Velocity', '' u 2:4 with lines t 'Position (ideal)', '' u 2:5 with lines t 'Position (actual)'"
-	gnuplot --persist -e "plot 'exponential-a1000.trace' u 2:3 with lines t 'Velocity', '' u 2:4 with lines t 'Position (ideal)', '' u 2:5 with lines t 'Position (actual)'"
-	gnuplot --persist -e "plot 'exponential-v20000.trace' u 2:3 with lines t 'Velocity', '' u 2:4 with lines t 'Position (ideal)', '' u 2:5 with lines t 'Position (actual)'"
+%.plot: %.trace
+	gnuplot $(GNUPLOT_FLAGS)
+
+exponential.plot exponential-v20000.plot exponential-a1000.plot: exponential.trace exponential-v20000.trace exponential-a1000.trace
+	gnuplot $(GNUPLOT_FLAGS)
+
+plot: exponential.plot exponential-v20000.plot exponential-a1000.plot
 
 exponential: exponential.c $(MAKEFILE_LIST)
 	gcc -ggdb -o exponential exponential.c -lm
