@@ -176,6 +176,91 @@ uint32_t dStep = 0;
 uint32_t dStepNext = 0;
 uint32_t dStepPrev = 0;
 int32_t dsDelta = 0;
+
+
+//----------- EXPERIMENTAL
+int64_t remain = 0;
+// Try to dial in an exact dStep for the next step by starting with the previous dstep and
+// refining it to fit the changing velocity profile and remainder value from previous.
+uint64_t nextStep( uint64_t guess , uint64_t now ) {
+
+    // Average velocity for this step
+    uint64_t v = (velocity_profile(now) + velocity_profile(now + guess)) / 2 ;
+
+    // Avoid div/zero
+    if (!v) v=1;
+
+    printf("# nextStep: t=%lu guess=%lu v=%f", now, guess, (float)v/f);
+    // Ideally:
+    //   step = (f*f -remainder)/ v
+    // We could simply do the division and be done.  Sort of.
+    // Changing the step also changes the 'v average', so there's a recursive reference here.
+
+    uint64_t check = (f*f - remain)/v;
+    printf("  check=%lu", check);
+
+    uint64_t vx = (velocity_profile(now) + velocity_profile(now + check)) / 2 ;
+    if (!vx) vx=1;
+    check = (f*f - remain)/vx;
+    printf("  check=%lu", check);
+
+    vx = (velocity_profile(now) + velocity_profile(now + check)) / 2 ;
+    if (!vx) vx=1;
+    check = (f*f - remain)/vx;
+    printf("  check=%lu\n", check);
+
+    // Continuing:
+    //   step = (f*f -remainder)/ v
+    //   v * step = f*f - remainder
+    //   remainder = f*f - v * step
+    //
+    // To track our remainder across calls, introduce a nextRemainder:
+    // nextRemainder = f*f - remainder - v*step
+
+    // We can adjust our initial guess up or down by whole integers, of course.
+    // If the adjustment is small it should be faster to search for it than to perform the
+    // division. Here's where we do that.
+
+    // Measure the error in our guess
+    int64_t error = (int64_t)f*f - remain - v * guess ;
+    uint64_t emag ;
+    if ( error < 0 ) emag = -error; else emag = error ;
+    uint8_t bit = 0;
+    int64_t adjust = 0;
+    uint64_t vf = v;
+
+    // Find the max 2^n we can add/sub to our guess
+    while ( emag >= vf ) {
+      vf <<= 1 ;
+      ++bit ;
+    }
+
+    printf("#        err=%ld  emag=%lu  bit=%u v=%lu vf=%lu\n", error, emag, bit, v, vf );
+
+    // Upper bound on adjustment is 2^(bit); start search at bit-1
+    while ( bit-- ) {
+      vf >>= 1 ;
+      if ( emag >= vf) {
+        emag -= vf ;
+        adjust += 1<<bit;
+      }
+    }
+
+    // Now we know exactly how much to adjust, even if our velocity estimate is a tad wrong
+    if ( error > 0 ) adjust = -adjust ;
+    if ( guess < adjust ) guess = 1000 ;
+    else                  guess -= adjust ;
+
+    // Find our error and leave it in the remainder for next time
+//    v = (velocity_profile(now) + velocity_profile(now + guess)) / 2 ;
+    remain += f*f;
+    remain -= v*guess ;
+
+    printf("#        v=%f adj=%lu    step=%lu      r=%f\n", (float)v/f, adjust, guess , (float)remain/f/f );
+
+    return guess;
+}
+
 void do_math( uint64_t tick ) {
 	const uint32_t nSteps_n = math_period * 2;
 	uint32_t nSteps_d = 0 ;
@@ -211,7 +296,8 @@ void do_math( uint64_t tick ) {
     vDelta = ((int64_t)vNext - (int64_t)vPrev) / nSteps ;
 	}
 
-  dStep = dStepPrev;
+  dStep = nextStep( dStep, tick );
+
   vNow = vPrev;
 
   printf("# %lu "
