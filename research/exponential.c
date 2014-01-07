@@ -243,24 +243,24 @@ void do_motion( int v, int a, int d ) {
 		uint64_t pTick = dTick ;
 		static uint64_t v0 = 0;
 
-		printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+		printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder/f);
 
 		// Periodic counter for math callback
 		math_period_remainder += dTick ;
 
-		// Distance moved in steps*(ticks/sec)
+		// Integrate: Distance moved in steps*(ticks/sec)
 		remainder += dTick * (v0 + vNow) / 2;
 		v0 = vNow ;
 
     // HACK: Record interim progress
     if ( remainder < divisor )
-      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder/f);
 
     while ( remainder >= divisor ) {
       //=== [STEP] ===
       ++pos ;
       remainder -= divisor;
-      printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder);
+      printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, pTick , tick - tStep, remainder/f);
       tStep = tick;
 
       // Linear approximation (close enough in small bursts)
