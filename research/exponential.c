@@ -58,6 +58,7 @@ float t(int tick) {
 uint64_t td ;
 uint64_t ts ;
 uint64_t te ;
+uint64_t vTs = 0 ;
 
 float trapezoidal_position( uint64_t now ) {
 	uint64_t pos ;
@@ -92,8 +93,14 @@ uint64_t velocity_profile( uint64_t now ) {
 	// now = time in secs to find velocity
 	uint64_t v = 0 ;
 	if (now > te) return 0;
-	if (now < ts) v  = trapezoidal_velocity(now) ;       // Calculate trapezoidal velocity during acceleration
-	else          v  = trapezoidal_velocity(ts);
+	if (now < ts)
+	  v  = trapezoidal_velocity(now) ;       // Calculate trapezoidal velocity during acceleration
+	else
+	{
+	  if ( ! vTs ) vTs = trapezoidal_velocity(ts);
+	  v = vTs ;
+	}
+
 	if (now > td) v -= trapezoidal_velocity(now - td);
 	return v;
 }
@@ -114,6 +121,7 @@ void plan_trapezoidal(uint64_t v, uint64_t a, uint64_t dx) {
 	td = Td(dx);
 	ts = Ts();
 	te = td + ts;
+	vTs = 0;  // Init
 }
 
 /* Plan an exponential-velocity movement at a given vmax, accel-max, and distance */
