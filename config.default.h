@@ -483,9 +483,17 @@ PWM value for 'off'
 // #define	BANG_BANG_OFF	45
 
 /**
-	move buffer size, in number of moves
-		note that each move takes a fair chunk of ram (69 bytes as of this writing) so don't make the buffer too big - a bigger serial readbuffer may help more than increasing this unless your gcodes are more than 70 characters long on average.
-		however, a larger movebuffer will probably help with lots of short consecutive moves, as each move takes a bunch of math (hence time) to set up so a longer buffer allows more of the math to be done during preceding longer moves
+  move buffer size, in number of moves
+    Must be a power of two (4, 8, 16, 32, 64, 128, etc.)
+
+    Note that each move takes a fair chunk of ram (69 bytes as of this writing)
+    so don't make the buffer too big - a bigger serial readbuffer may help more
+    than increasing this unless your gcodes are more than 70 characters long on
+    average.
+
+    However, a larger movebuffer will probably help with lots of short consecutive
+    moves, as each move takes a bunch of math (hence time) to set up so a longer
+    buffer allows more of the math to be done during preceding longer moves.
 */
 #define	MOVEBUFFER_SIZE	8
 
