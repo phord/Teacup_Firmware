@@ -279,12 +279,12 @@ void do_math( uint16_t tick ) {
 
   vNow = vPrev;
 
-  printf("# do_math %u "
-         //"n=%u d=%u "
-         "v(%f %f %f) ds(%u %u %u %d)\n",
-      tick, // nSteps_n , nSteps_d ,
-      (float)vPrev/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f,
-      dStep, dStepPrev, dStepNext, dsDelta );
+//  printf("# do_math %u "
+//         //"n=%u d=%u "
+//         "v(%f %f %f) ds(%u %u %u %d)\n",
+//      tick, // nSteps_n , nSteps_d ,
+//      (float)vPrev/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f,
+//      dStep, dStepPrev, dStepNext, dsDelta );
 }
 
 void do_motion( int v, int a, int d ) {
@@ -312,11 +312,12 @@ void do_motion( int v, int a, int d ) {
 
     static uint64_t v0 = 0;
 
-    printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
+//    printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 
     // Periodic counter for math callback
     math_period_remainder += dTick ;
 
+    // TODO: Make 'math_period' a power of two (32768) so the following math has no division operation (just drop the low two-bytes).
     v0 = vNow ;
     vNow += (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
 
@@ -324,8 +325,8 @@ void do_motion( int v, int a, int d ) {
     remainder += dTick * (v0 + vNow) / 2;
 
     // HACK: Record interim progress
-    if ( remainder + min_tick*f < divisor )
-      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
+//    if ( remainder + min_tick*f < divisor )
+//      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 
     if ( remainder + min_tick*f >= divisor ) {
       //=== [STEP] ===
@@ -338,19 +339,19 @@ void do_motion( int v, int a, int d ) {
       dStep += dsDelta ;
     }
 
-    printf("#     tick=%lu remainder=%lu  tStep=%lu  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
+//    printf("#     tick=%lu remainder=%lu  tStep=%lu  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
 
     // Time for next step to occur
-    dTick = math_period ; // / 4 ;
-    if ( dTick >  math_period - math_period_remainder )
+    dTick = math_period ;
+    if ( math_period > math_period_remainder )
       dTick = math_period - math_period_remainder ;
-    printf("==> dTick=%lu  ",dTick ) ;
+//    printf("==> dTick=%lu  ",dTick ) ;
     uint64_t nextStep     = tStep + dStep;
     if ( tick + dTick > nextStep ) dTick = nextStep - tick ;
     if (dTick > nextStep ) dTick = min_tick+1; // overflow: we should have ticked in the past?
-    printf("==> dTick=%lu  ",dTick ) ;
+//    printf("==> dTick=%lu  ",dTick ) ;
     dTick = MAX( dTick , min_tick ) ;
-    printf("==> dTick=%lu\n",dTick ) ;
+//    printf("==> dTick=%lu\n",dTick ) ;
 
     //------------------------------------------------------------------------------ ENABLE INTERRUPTS
 
@@ -360,7 +361,6 @@ void do_motion( int v, int a, int d ) {
 
     if (math_period_remainder >= math_period) {
       do_math(math_period);
-      // Findings:  The first dTick after a call to do_math is too short.  It causes a premature "extra" step to occur.
       math_period_remainder -= math_period;
     }
 
@@ -373,4 +373,5 @@ void do_motion( int v, int a, int d ) {
 
   fprintf(stderr, "Did not reach commanded distance.  demand=%u, actual=%lu\n",
       d, pos ) ;
+  exit(1);
 }
