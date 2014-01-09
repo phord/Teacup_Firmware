@@ -29,9 +29,9 @@ typedef struct Movement {
   uint32_t ts ;  ///< start time needed to accelerate to vmax; also time to decel to zero
   uint32_t te ;  ///< actual end time of entire movement
 
-  // vmax = max speed in steps/sec
-  // acc = acceleration in steps/sec^2
-  int32_t vmax , acc ;
+
+  int32_t vmax;  ///< target velocity in steps/sec
+  int32_t acc;   ///< acceleration in steps/sec^2
 
   VelocityPhase velocityPhase;
   int64_t acceleration ;  ///< Current acceleration during this phase
@@ -68,12 +68,18 @@ uint64_t Td( uint64_t dx ) {
 
 // NOTE: When we drop this to int32, it overflows at accel=100000 because ticks=40000.
 // Maybe accel has to be limited to 50000?
+//  Consider the units:  acc is in steps/s^2
+//      Normal user value is max 1000 mm/s/s
+//      mm/s/s * 60 steps/mm = 60000 steps/s/s
+//      Someone with ACCEL=1000 and STEPS_PER_M_X=100000 is going to overflow.
 int64_t trapezoidal_velocity( uint16_t ticks ) {
   // Trapezoidal velocity (max constant acceleration)
   // @param ticks time of movement in ticks
   //   acc in steps/sec/sec
   //   return change in velocity (dV) in f * steps/sec
   //   steps/sec * ticks/sec => ticks.steps/sec/sec
+  //   TODO: Save this calculation for re-use next time because we often get
+  //         called with the same ticks=40000 or ticks=0 values.
   return m.acceleration * ticks ;
 }
 
