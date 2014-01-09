@@ -22,9 +22,12 @@ typedef enum {
 
 typedef struct Movement {
   /* MOVEMENT PLANNER STRUCTURE */
-  uint64_t td ;  ///< ideal displacement time in ticks at full vMax
-  uint64_t ts ;  ///< start time needed to accelerate to vmax; also time to decel to zero
-  uint64_t te ;  ///< actual end time of entire movement
+
+  // Time values are given in cycles (clock ticks) and so will overflow in about 200 seconds
+  // at 20MHz.  A 220-second move is impossible unless these time variables are embiggened.
+  uint32_t td ;  ///< ideal displacement time in ticks at full vMax
+  uint32_t ts ;  ///< start time needed to accelerate to vmax; also time to decel to zero
+  uint32_t te ;  ///< actual end time of entire movement
 
   // vmax = max speed in steps/sec
   // acc = acceleration in steps/sec^2
@@ -71,36 +74,43 @@ uint32_t trapezoidal_velocity( uint16_t ticks ) {
   return (uint32_t) m.acc * ticks ;
 }
 
-float t(int tick) {
-  return ((float)tick)/f;
-}
 
-float trapezoidal_position( uint64_t now ) {
-  uint64_t pos ;
+      //==================================================================================
+      // DO NOT OPTIMIZE
+      float t(int tick) {
+        return ((float)tick)/f;
+      }
 
-  //-- Constrain to our move time
-  if ( now > m.te ) now = m.te ;
+      //==================================================================================
+      // DO NOT OPTIMIZE
+      float trapezoidal_position( uint64_t now ) {
+        uint64_t pos ;
 
-  uint64_t rampup = now;
-  if ( rampup > m.ts) rampup = m.ts ;
-  uint64_t cruise = 0;
-  if ( now > m.ts ) cruise = now - m.ts ;
-  uint64_t rampdown = now - m.td;
-  if ( now < m.td ) rampdown = 0 ;
+        //-- Constrain to our move time
+        if ( now > m.te ) now = m.te ;
 
-  // Rampup period
-  pos = m.acc * rampup * rampup / 2;
+        uint64_t rampup = now;
+        if ( rampup > m.ts) rampup = m.ts ;
+        uint64_t cruise = 0;
+        if ( now > m.ts ) cruise = now - m.ts ;
+        uint64_t rampdown = now - m.td;
+        if ( now < m.td ) rampdown = 0 ;
 
-  // Cruise period
-  pos += cruise * m.vmax * f;
+        // Rampup period
+        pos = m.acc * rampup * rampup / 2;
 
-  // Rampdown period / idle period
-  pos -= m.acc * rampdown * rampdown / 2;
+        // Cruise period
+        pos += cruise * m.vmax * f;
 
-//  printf("=== %f %f %u %f %f %f ===\n", t(now), rampup, (uint64_t) (rampup * f), cruise, rampdown, pos);
+        // Rampdown period / idle period
+        pos -= m.acc * rampdown * rampdown / 2;
 
-  return (float)pos/f/f;
-}
+      //  printf("=== %f %f %u %f %f %f ===\n", t(now), rampup, (uint64_t) (rampup * f), cruise, rampdown, pos);
+
+        return (float)pos/f/f;
+      }
+      // DO NOT OPTIMIZE
+      //==================================================================================
 
 void next_phase(void) ;
 void init_velocity_profile( ) {
@@ -167,7 +177,7 @@ uint64_t velocity_profile( uint16_t nextTicks ) {
 }
 
 /* Plan a trapezoidal-velocity movement at a given vmax, accel-max, and distance */
-void plan_trapezoidal(uint64_t v, uint64_t a, uint64_t dx) {
+void plan_trapezoidal(uint32_t v, uint32_t a, uint32_t dx) {
   // Ensure:
   // dx / vmax > vmax / acc
   // dx > vmax^2 / acc
@@ -185,7 +195,7 @@ void plan_trapezoidal(uint64_t v, uint64_t a, uint64_t dx) {
 }
 
 /* Plan an exponential-velocity movement at a given vmax, accel-max, and distance */
-void plan_exponential(uint64_t v, uint64_t a, uint64_t j, uint64_t dx) {
+void plan_exponential(uint32_t v, uint32_t a, uint32_t j, uint32_t dx) {
   // TODO: Re-calculate alpha if vmax, accel, or jerk have changed; otherwise, use previous value
   // Eventually we need to determine the max allowed alpha given multiple axes moving a different speeds, accels, jerks and distances.
   // For that we need to determine which factor will limit it the most (j[n], a[n]) and then decide the limit.  Or else we need to
@@ -262,7 +272,7 @@ void do_math( uint16_t tick ) {
   dStep = (dStepNext + dStepPrev)/2;
 
   int64_t nSteps = (tick + dStep/2 ) / dStep ;
-  dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / (nSteps + 2);
+  dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / (nSteps + 1);
 
   // vDelta is per-period, not per-step
   vDelta = ((int64_t)vNext - (int64_t)vPrev) ;
@@ -296,7 +306,7 @@ void do_motion( int v, int a, int d ) {
   do_math(math_period);
 
 
-  printf("# dx=%u  Ts=%lu  Td=%lu  Te=%lu\n" , d, m.ts, m.td, m.te );
+  printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , d, m.ts, m.td, m.te );
   printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
   for (tick = 0 ; tick < m.te ; tick+=dTick ) {
 
@@ -357,7 +367,7 @@ void do_motion( int v, int a, int d ) {
   }
 
   printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
-  printf("# Commanded: dx=%u  T=%lu\n" , d, m.te );
+  printf("# Commanded: dx=%u  T=%u\n" , d, m.te );
   printf("#    Actual: dx=%lu  T=%lu\n" , pos, tick );
   if ( pos == d ) exit(0);
 
