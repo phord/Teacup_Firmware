@@ -41,13 +41,13 @@ uint64_t Td( uint64_t dx ) {
 	return dx * f / vmax ;
 }
 
-uint64_t trapezoidal_velocity( uint64_t now ) {
+uint32_t trapezoidal_velocity( uint16_t ticks ) {
 	// Trapezoidal velocity (max constant acceleration)
-	// @param now time of movement in ticks
+	// @param ticks time of movement in ticks
 	//   acc in steps/sec/sec
-	//   return velocity in f * steps/sec
+	//   return change in velocity (dV) in f * steps/sec
 	//   steps/sec * ticks/sec => ticks.steps/sec/sec
-	return (uint64_t) acc * now ;
+	return (uint32_t) acc * ticks ;
 }
 
 float t(int tick) {
@@ -87,22 +87,79 @@ float trapezoidal_position( uint64_t now ) {
 	return (float)pos/f/f;
 }
 
-// Note: returns ticks/sec * steps/sec
-uint64_t velocity_profile( uint64_t now ) {
-	// dx = steps to move
-	// now = time in secs to find velocity
-	uint64_t v = 0 ;
-	if (now > te) return 0;
-	if (now < ts)
-	  v  = trapezoidal_velocity(now) ;       // Calculate trapezoidal velocity during acceleration
-	else
-	{
-	  if ( ! vTs ) vTs = trapezoidal_velocity(ts);
-	  v = vTs ;
-	}
+/* Order of these phases is important.  Don't rearrange them without careful planning. */
+enum {
+  Velocity_Init ,
+  Velocity_RampUp ,
+  Velocity_Cruise,
+  Velocity_RampDown,
+  Velocity_Done
+} velocityPhase;
 
-	if (now > td) v -= trapezoidal_velocity(now - td);
-	return v;
+uint64_t velocity = 0;
+uint32_t phaseTime;
+void next_phase(void) ;
+void init_velocity_profile( ) {
+  velocityPhase = Velocity_Init;
+  velocity = 0;
+  next_phase();
+}
+
+void accumulate_velocity( uint16_t ticks ) {
+  switch (velocityPhase) {
+  case Velocity_RampUp:
+    velocity += trapezoidal_velocity(ticks) ;       // accumulate trapezoidal velocity during acceleration
+    break;
+  case Velocity_RampDown:
+    velocity -= trapezoidal_velocity(ticks) ;       // accumulate trapezoidal velocity during deceleration
+    break;
+  case Velocity_Cruise:
+  case Velocity_Done:
+    // No change to velocity during cruise or done
+    break;
+  }
+}
+
+void next_phase() {
+  if (velocityPhase < Velocity_Done)
+    ++velocityPhase;
+
+  switch (velocityPhase) {
+  case Velocity_Init:   // This should never happen
+  case Velocity_Done:
+    phaseTime = 0;
+    break;
+
+  case Velocity_RampUp:
+  case Velocity_RampDown:
+    phaseTime = ts;
+    break;
+
+  case Velocity_Cruise:
+    phaseTime = td > ts ? td-ts : 0 ;
+    break;
+  }
+}
+
+// Note: returns ticks/sec * steps/sec
+uint64_t velocity_profile( uint16_t nextTicks ) {
+
+  while (nextTicks > 0 && velocityPhase < Velocity_Done) {
+    uint16_t ticks = nextTicks;
+
+    //-- Split time into this-phase and next-phase parts
+    if ( ticks > phaseTime )
+      ticks = (uint16_t)phaseTime ;
+    phaseTime -= ticks ;
+    nextTicks -= ticks ;
+
+    // Accumulate velocity during each phase we touch
+    accumulate_velocity(ticks);
+
+    if (phaseTime == 0)
+      next_phase();
+  }
+  return velocity;
 }
 
 /* Plan a trapezoidal-velocity movement at a given vmax, accel-max, and distance */
@@ -132,14 +189,10 @@ void plan_exponential(uint64_t v, uint64_t a, uint64_t j, uint64_t dx) {
 	// calculate amax for each axis and then choose the lowest amax from all axes and use that to plan each axis.
 }
 
-void do_math( uint64_t tick );
+void do_math( uint16_t tick );
 
 void plan(uint64_t v, uint64_t a, uint64_t dx) {
 	plan_trapezoidal(v,a,dx);
-
-	// Prime our calculations
-	do_math(0);
-
 }
 
 const char * shortopts = "a:v:d:";
@@ -180,14 +233,15 @@ int64_t vDelta = 0 ;
 uint32_t dStep = 0;
 int32_t dsDelta = 0;
 
-void do_math( uint64_t tick ) {
+void do_math( uint16_t tick ) {
   static uint32_t dStepNext = 0;
   uint32_t dStepPrev = 0;
   uint64_t vPrev = 0;
 
 	//-- This is our first step
 	if ( !dStep ) {
-		vNext = velocity_profile(tick);
+	  init_velocity_profile();
+		vNext = velocity_profile(0);
 		dStepNext = f*f / (vNext?vNext:1) ;
 	}
 
@@ -196,7 +250,7 @@ void do_math( uint64_t tick ) {
 	dStepPrev = dStepNext;
 
 	//-- Calculate velocity/step values for next period
-	vNext = velocity_profile(tick + math_period);
+	vNext = velocity_profile(tick);
 	dStepNext = f*f / (vNext?vNext:1) ;
 
 	// This is too slow and expensive.  Reduce and remove some division to make it AVR-friendly.
@@ -204,7 +258,7 @@ void do_math( uint64_t tick ) {
   //    and then use addition/remainder method to determine when to advance and by how much
 	dStep = (dStepNext + dStepPrev)/2;
 
-	int64_t nSteps = (math_period + dStep/2 ) / dStep ;
+	int64_t nSteps = (tick + dStep/2 ) / dStep ;
   dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / (nSteps + 2);
 
 	// vDelta is per-period, not per-step
@@ -212,7 +266,7 @@ void do_math( uint64_t tick ) {
 
   vNow = vPrev;
 
-  printf("# %lu "
+  printf("# do_math %u "
          //"n=%u d=%u "
          "v(%f %f %f) ds(%u %u %u %d)\n",
 			tick, // nSteps_n , nSteps_d ,
@@ -235,6 +289,9 @@ void do_motion( int v, int a, int d ) {
 	math_period = f * 2 / 1000 ;   // Ticks per 2ms
 
 	plan(v, a, d);
+  // Prime our calculations
+  do_math(math_period);
+
 
 	printf("# dx=%u  Ts=%lu  Td=%lu  Te=%lu\n" , d, ts, td, te );
 	printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
@@ -289,7 +346,7 @@ void do_motion( int v, int a, int d ) {
 		}
 
 		if (math_period_remainder >= math_period) {
-			do_math(tick);
+			do_math(math_period);
 			// Findings:  The first dTick after a call to do_math is too short.  It causes a premature "extra" step to occur.
 			math_period_remainder -= math_period;
 		}
