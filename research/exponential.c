@@ -31,9 +31,10 @@ typedef struct Movement {
 
   // vmax = max speed in steps/sec
   // acc = acceleration in steps/sec^2
-  uint64_t vmax , acc ;
+  int32_t vmax , acc ;
 
   VelocityPhase velocityPhase;
+  int64_t acceleration ;  ///< Current acceleration during this phase
   uint64_t velocity ;     ///< Current velocity in steps * ticks / sec / sec
   uint32_t phaseTime;     ///< Time (ticks) remaining in the current velocity phase
 } Movement;
@@ -65,13 +66,15 @@ uint64_t Td( uint64_t dx ) {
   return dx * f / m.vmax ;
 }
 
-uint32_t trapezoidal_velocity( uint16_t ticks ) {
+// NOTE: When we drop this to int32, it overflows at accel=100000 because ticks=40000.
+// Maybe accel has to be limited to 50000?
+int64_t trapezoidal_velocity( uint16_t ticks ) {
   // Trapezoidal velocity (max constant acceleration)
   // @param ticks time of movement in ticks
   //   acc in steps/sec/sec
   //   return change in velocity (dV) in f * steps/sec
   //   steps/sec * ticks/sec => ticks.steps/sec/sec
-  return (uint32_t) m.acc * ticks ;
+  return m.acceleration * ticks ;
 }
 
 
@@ -116,22 +119,12 @@ void next_phase(void) ;
 void init_velocity_profile( ) {
   m.velocityPhase = Velocity_Init;
   m.velocity = 0;
+  m.acceleration = 0;
   next_phase();
 }
 
 void accumulate_velocity( uint16_t ticks ) {
-  switch (m.velocityPhase) {
-  case Velocity_RampUp:
-    m.velocity += trapezoidal_velocity(ticks) ;       // accumulate trapezoidal velocity during acceleration
-    break;
-  case Velocity_RampDown:
-    m.velocity -= trapezoidal_velocity(ticks) ;       // accumulate trapezoidal velocity during deceleration
-    break;
-  case Velocity_Cruise:
-  case Velocity_Done:
-    // No change to velocity during cruise or done
-    break;
-  }
+  m.velocity += trapezoidal_velocity(ticks) ;
 }
 
 void next_phase() {
@@ -141,15 +134,22 @@ void next_phase() {
   switch (m.velocityPhase) {
   case Velocity_Init:   // This should never happen
   case Velocity_Done:
+    m.acceleration = 0;
     m.phaseTime = 0;
     break;
 
   case Velocity_RampUp:
+    m.phaseTime = m.ts;
+    m.acceleration = m.acc;
+    break;
+
   case Velocity_RampDown:
     m.phaseTime = m.ts;
+    m.acceleration = -m.acc;
     break;
 
   case Velocity_Cruise:
+    m.acceleration = 0;
     m.phaseTime = m.td > m.ts ? m.td-m.ts : 0 ;
     break;
   }
