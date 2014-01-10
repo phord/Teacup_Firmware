@@ -39,7 +39,7 @@ typedef struct Movement {
   uint32_t phaseTime;     ///< Time (ticks) remaining in the current velocity phase
 } Movement;
 
-Movement m = { 0,0,0,0,0,0,0,0};
+Movement m = { 0,0,0,0,0,0,0,0,0 };
 
 // ts = time to achieve vmax
 uint64_t Ts() {
@@ -48,14 +48,18 @@ uint64_t Ts() {
   // ts/f = vmax / acc
   // ts = f*vmax / acc
   return m.vmax * f / m.acc ;
+
+  // We could do this, except only arg1 can be signed.  Need to move the sign.
+  // return muldiv(m.vmax, f , m.acc );
+  // Also, we don't need to optimize this.
 }
 
-// ts = time to achieve vmax
-uint64_t Ts_exp() {
-  uint64_t alpha = 1.5 * 65536 ; // future
-  //float ts = 2.1 * alpha ;              // Exponential velocity
-  return (f/10 * 21 + 32768)>>65536 * alpha ;
-}
+//// ts = time to achieve vmax
+//uint64_t Ts_exp() {
+//  uint64_t alpha = 1.5 * 65536 ; // future
+//  //float ts = 2.1 * alpha ;              // Exponential velocity
+//  return (f/10 * 21 + 32768)>>65536 * alpha ;
+//}
 
 uint64_t Td( uint64_t dx ) {
   // dx in steps
@@ -72,6 +76,7 @@ uint64_t Td( uint64_t dx ) {
 //      Normal user value is max 1000 mm/s/s
 //      mm/s/s * 60 steps/mm = 60000 steps/s/s
 //      Someone with ACCEL=1000 and STEPS_PER_M_X=100000 is going to overflow.
+//      Ultimately we add this to m.velocity, which still needs to be 64-bits; so no biggie?
 int64_t trapezoidal_velocity( uint16_t ticks ) {
   // Trapezoidal velocity (max constant acceleration)
   // @param ticks time of movement in ticks
@@ -129,10 +134,6 @@ void init_velocity_profile( ) {
   next_phase();
 }
 
-void accumulate_velocity( uint16_t ticks ) {
-  m.velocity += trapezoidal_velocity(ticks) ;
-}
-
 void next_phase() {
   if (m.velocityPhase < Velocity_Done)
     ++m.velocityPhase;
@@ -162,6 +163,7 @@ void next_phase() {
 }
 
 // Note: returns ticks/sec * steps/sec
+// Overflows 32-bits quickly!
 uint64_t velocity_profile( uint16_t nextTicks ) {
 
   while (nextTicks > 0 && m.velocityPhase < Velocity_Done) {
@@ -173,8 +175,8 @@ uint64_t velocity_profile( uint16_t nextTicks ) {
     m.phaseTime -= ticks ;
     nextTicks -= ticks ;
 
-    // Accumulate velocity during each phase we touch
-    accumulate_velocity(ticks);
+    // Accumulate velocity during each phase
+    m.velocity += trapezoidal_velocity(ticks) ;
 
     if (m.phaseTime == 0)
       next_phase();
@@ -200,13 +202,13 @@ void plan_trapezoidal(uint32_t v, uint32_t a, uint32_t dx) {
   m.te = m.td + m.ts;
 }
 
-/* Plan an exponential-velocity movement at a given vmax, accel-max, and distance */
-void plan_exponential(uint32_t v, uint32_t a, uint32_t j, uint32_t dx) {
-  // TODO: Re-calculate alpha if vmax, accel, or jerk have changed; otherwise, use previous value
-  // Eventually we need to determine the max allowed alpha given multiple axes moving a different speeds, accels, jerks and distances.
-  // For that we need to determine which factor will limit it the most (j[n], a[n]) and then decide the limit.  Or else we need to
-  // calculate amax for each axis and then choose the lowest amax from all axes and use that to plan each axis.
-}
+///* Plan an exponential-velocity movement at a given vmax, accel-max, and distance */
+//void plan_exponential(uint32_t v, uint32_t a, uint32_t j, uint32_t dx) {
+//  // TODO: Re-calculate alpha if vmax, accel, or jerk have changed; otherwise, use previous value
+//  // Eventually we need to determine the max allowed alpha given multiple axes moving a different speeds, accels, jerks and distances.
+//  // For that we need to determine which factor will limit it the most (j[n], a[n]) and then decide the limit.  Or else we need to
+//  // calculate amax for each axis and then choose the lowest amax from all axes and use that to plan each axis.
+//}
 
 void do_math( uint16_t tick );
 
