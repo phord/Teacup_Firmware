@@ -313,24 +313,21 @@ void do_motion( int v, int a, int d ) {
   // Prime our calculations
   do_math(math_period);
 
+  uint64_t vDiff = vDelta;
 
   printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , d, m.ts, m.td, m.te );
   printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
   for (tick = 0 ; tick < m.te ; tick+=dTick ) {
-
-    static uint64_t v0 = 0;
 
 //    printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 
     // Periodic counter for math callback
     math_period_remainder += dTick ;
 
-    // TODO: Make 'math_period' a power of two (32768) so the following math has no division operation (just drop the low two-bytes).
-    v0 = vNow ;
-    vNow += (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
-
     // Integrate: Distance moved in steps*(ticks/sec)
-    remainder += dTick * (v0 + vNow) / 2;
+    remainder += dTick * (vNow*2 + vDiff ) / 2;
+
+    vNow += vDiff ;
 
     // HACK: Record interim progress
 //    if ( remainder + min_tick*f < divisor )
@@ -371,6 +368,8 @@ void do_motion( int v, int a, int d ) {
       do_math(math_period);
       math_period_remainder -= math_period;
     }
+
+    vDiff = (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
 
   }
 
