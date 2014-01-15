@@ -9,7 +9,10 @@
 #include <ctype.h>
 #include <getopt.h>
 
-uint64_t f = 20000000;
+#define SCALAR_BITS 6
+#define SCALAR_DIV ((1<<SCALAR_BITS)*1.)
+
+const uint64_t f = 20000000;
 
 /* Order of these phases is important.  Don't rearrange them without careful planning. */
 typedef enum {
@@ -36,6 +39,7 @@ typedef struct Movement {
   VelocityPhase velocityPhase;
   int64_t acceleration ;  ///< Current acceleration during this phase
   uint64_t velocity ;     ///< Current velocity in steps * ticks / sec / sec
+  uint32_t velocity32 ;   ///< Current velocity in (steps << 16) / sec
   uint32_t phaseTime;     ///< Time (ticks) remaining in the current velocity phase
 } Movement;
 
@@ -130,6 +134,7 @@ void next_phase(void) ;
 void init_velocity_profile( ) {
   m.velocityPhase = Velocity_Init;
   m.velocity = 0;
+  m.velocity32 = 0;
   m.acceleration = 0;
   next_phase();
 }
@@ -177,6 +182,7 @@ uint64_t velocity_profile( uint16_t nextTicks ) {
 
     // Accumulate velocity during each phase
     m.velocity += trapezoidal_velocity(ticks) ;
+    m.velocity32 = (m.velocity << SCALAR_BITS ) / f;
 
     if (m.phaseTime == 0)
       next_phase();
@@ -251,63 +257,88 @@ uint64_t math_period ; //= f * 2 / 1000 ;   // Ticks per 2ms
 uint64_t vNow = 0;
 uint64_t vNext = 0;
 int64_t vDelta = 0 ;
+uint32_t vNext32 = 0;
+uint32_t vNow32 = 0;
+int32_t vDelta32 = 0 ;
 uint32_t dStep = 0;
+uint32_t dStep32 = 0;
 int32_t dsDelta = 0;
 
 void do_math( uint16_t tick ) {
   static uint32_t dStepNext = 0;
   uint32_t dStepPrev = 0;
   uint64_t vPrev = 0;
+  uint32_t vPrev32 = 0;
 
   //-- This is our first step
   if ( !dStep ) {
     init_velocity_profile();
     vNext = velocity_profile(0);
+    vNext32 = m.velocity32;
     dStepNext = f*f ;
   }
 
   //-- Use precalculated values for this math_period
   vPrev = vNext;
+  vPrev32 = vNext32;
   dStepPrev = dStepNext;
 
   //-- Calculate velocity/step values for next period
   vNext = velocity_profile(tick);
+  vNext32 = m.velocity32;
   dStepNext = f*f / (vNext?vNext:1) ;
 
   // This is too slow and expensive.  Reduce and remove some division to make it AVR-friendly.
   // Another idea: store f*dsDelta instead (or some 'multiplier', say 'math_period'),
   //    and then use addition/remainder method to determine when to advance and by how much
-  dStep = (dStepNext + dStepPrev)/2;
+  dStep32 = dStep = (dStepNext + dStepPrev)/2;
 
   int64_t nSteps = (tick + dStep/2 ) / dStep ;
   dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / (nSteps + 1);
 
   // vDelta is per-period, not per-step
   vDelta = ((int64_t)vNext - (int64_t)vPrev) ;
+  vDelta32 = ((int32_t)vNext32 - (int32_t)vPrev32) ;
 
   vNow = vPrev;
+  vNow32 = vPrev32;
 
-//  printf("# do_math %u "
-//         //"n=%u d=%u "
-//         "v(%f %f %f) ds(%u %u %u %d)\n",
-//      tick, // nSteps_n , nSteps_d ,
-//      (float)vPrev/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f,
-//      dStep, dStepPrev, dStepNext, dsDelta );
+  printf("# do_math %u "
+         //"n=%u d=%u "
+         "v(%f %f %f) v32(%f %f %f) ds(%u %u %u %d)\n",
+      tick, // nSteps_n , nSteps_d ,
+      (float)vPrev/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f,
+      (float)vPrev32/SCALAR_DIV, (float)vNext32/SCALAR_DIV , (float)vDelta32/SCALAR_DIV,
+      dStep, dStepPrev, dStepNext, dsDelta );
 }
 
 static uint64_t pos = 0;
+static uint32_t pos32 = 0;
+uint64_t tick, dTick=0, tStep=0, tStep32=0;
+int64_t divisor;
+int64_t divisor32;
+int64_t remainder64 ;
+int64_t remainder32 ;
 void do_step() {
   //=== [STEP] ===
   ++pos ;
-  printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 }
-
+//_____________________________________
+void do_step32() {
+  //=== [STEP] ===
+  ++pos32 ;
+//  printf("# pos32=%u  rem32=%ld v32=%f (%u) v32Next=%f  %f  %f\n", pos32, remainder32, vNow32/SCALAR_DIV, vNow32 , vNext32/SCALAR_DIV, remainder32 / (float)remainder64 , vNow / (float)vNow32);
+}
+//_____________________________________
 void do_motion( int v, int a, int d ) {
-  uint64_t tick, dTick=0, tStep=0;
   uint32_t math_period_remainder=0;
-  const int64_t divisor = f*f;    // Common denominator
-  int64_t remainder = divisor/2;  // Forward bias to round up
   uint64_t min_tick = f*50/1000000;// Minimum timer ISR cycle time (50us)
+  uint64_t min_tick32 = (50 << SCALAR_BITS ) / 1000000 ;// Minimum timer ISR cycle time (50us)
+
+  divisor = f*f;    // Common denominator
+  remainder64 = divisor/2;  // Forward bias to round up
+  divisor32 = f<<SCALAR_BITS;  // 64-bit, but uses 32-bit velocity
+  remainder32 = divisor32/2;  // 64-bit, but uses 32-bit velocity
 
   // Const, but cannot be declared const yet
   math_period = f * 2 / 1000 ;   // Ticks per 2ms
@@ -316,7 +347,8 @@ void do_motion( int v, int a, int d ) {
   // Prime our calculations
   do_math(math_period);
 
-  uint64_t vDiff = vDelta; // TODO: Is this right?  Might be too big sometimes?
+  int64_t vDiff = vDelta; // TODO: Is this right?  Might be too big sometimes?
+  int32_t vDiff32 = vDelta32;
 
   printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , d, m.ts, m.td, m.te );
   printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
@@ -326,23 +358,47 @@ void do_motion( int v, int a, int d ) {
 
 //    printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 
+//    printf("# iterate %lu\t%lu=%u %d\t"
+//           "v(%f %f %f) v32(%f %f %f)  %lu %lu\n",
+//        tick, pos, pos32, (int32_t)pos - (int32_t) pos32,
+//        (float)vDiff/(float)f, (float)vNext/(float)f , (float)vDelta/(float)f,
+//        (float)vDiff32/SCALAR_DIV, (float)vNext32/SCALAR_DIV , (float)vDelta32/SCALAR_DIV,
+//        remainder64/f, remainder32>>SCALAR_BITS);
+
     // Periodic counter for math callback
     math_period_remainder += dTick ;
 
     // Integrate: Distance moved in steps*(ticks/sec)
-    remainder += dTick * (vNow*2 + vDiff ) / 2;
+    remainder64 += dTick * (vNow*2 + vDiff ) / 2;
+    remainder32 += dTick * ((uint64_t)vNow32*2 + vDiff32 ) / 2;
 
     vNow += vDiff ;
+    vNow32 += vDiff32 ;
 
-    if ( remainder + min_tick*f >= divisor ) {
-      remainder -= divisor;
+    int stepped = 0 ;
+    if ( remainder32 + min_tick32 >= divisor32 ) {
+      remainder32 -= divisor32;
+      do_step32();
+      tStep32 = tick;
+      dStep32 += dsDelta ;
+      ++stepped;
+    }
+    if ( remainder64 + min_tick*f >= divisor ) {
+      remainder64 -= divisor;
       do_step();
       // Remember the time (now) of our last step
       tStep = tick;
 
       // Linear approximation (close enough in small bursts)
       dStep += dsDelta ;
+      ++stepped;
     }
+
+    if ( stepped )
+      printf("%lu %f %f %f %f %lu %lu %lu %lu    %f %u %lu\n",
+          tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick),
+          pos, dTick , tick - tStep, remainder64/f,
+          vNow32/SCALAR_DIV, pos32, remainder32>>SCALAR_BITS);
 //    else
 //    {
 //      // HACK: Record interim progress
@@ -352,12 +408,16 @@ void do_motion( int v, int a, int d ) {
 
 //    printf("#     tick=%lu remainder=%lu  tStep=%lu  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
 
+
     // Time for next step to occur
     dTick = math_period ;
     if ( math_period > math_period_remainder )
       dTick = math_period - math_period_remainder ;
 //    printf("==> dTick=%lu  ",dTick ) ;
     uint64_t nextStep     = tStep + dStep;
+    uint64_t nextStep32   = tStep32 + dStep32;
+    if ( nextStep > nextStep32 ) nextStep = nextStep32 ;
+
     if ( tick + dTick > nextStep ) dTick = nextStep - tick ;
     if (dTick > nextStep ) dTick = min_tick+1; // overflow: we should have ticked in the past?
 //    printf("==> dTick=%lu  ",dTick ) ;
@@ -366,8 +426,8 @@ void do_motion( int v, int a, int d ) {
 
     //------------------------------------------------------------------------------ ENABLE INTERRUPTS
 
-    if ( remainder > divisor ) {
-      fprintf(stderr, "Step undershoot:  t=%lu  pos=%lu  remainder=%lu\n", tick, pos , remainder - divisor);
+    if ( remainder64 > divisor ) {
+      fprintf(stderr, "Step undershoot:  t=%lu  pos=%lu  remainder=%lu\n", tick, pos , remainder64 - divisor);
     }
 
     if (math_period_remainder >= math_period) {
@@ -377,14 +437,17 @@ void do_motion( int v, int a, int d ) {
 
     vDiff = (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
 
+    // 32-bit math here truncates high bits!
+    vDiff32 = (vDelta32*(int64_t)(2*dTick+1))/(int64_t)math_period/2 ;
+
   }
 
   printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
   printf("# Commanded: dx=%u  T=%u\n" , d, m.te );
   printf("#    Actual: dx=%lu  T=%lu\n" , pos, tick );
-  if ( pos == d ) exit(0);
+  if ( pos == d && pos32 == d ) exit(0);
 
-  fprintf(stderr, "Did not reach commanded distance.  demand=%u, actual=%lu\n",
-      d, pos ) ;
+  fprintf(stderr, "Did not reach commanded distance.  demand=%u, actual=%lu, actual32=%u\n",
+      d, pos, pos32 ) ;
   exit(1);
 }

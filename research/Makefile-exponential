@@ -10,6 +10,8 @@ GNUPLOT_SCRIPT += , '' u 1:4 with steps t 'VelocityNow'
 GNUPLOT_SCRIPT += , '' u 1:5 with lines t 'Position (ideal)'
 GNUPLOT_SCRIPT += , '' u 1:(\$$5 - \$$6) with steps t 'Position error'
 GNUPLOT_SCRIPT += , '' u 1:6 with steps t 'Position (actual)'
+GNUPLOT_SCRIPT += , '' u 1:11 with steps t 'Pos32 (actual)'
+GNUPLOT_SCRIPT += , '' u 1:10 with steps t 'VelocityNow32'
 
 all: plot
 
