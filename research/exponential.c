@@ -441,7 +441,7 @@ void do_motion( int v, int a, int d ) {
     vDiff = (vDelta*(int64_t)(2*dTick + 1))/(int64_t)math_period/2 ;
 
     // 32-bit math here truncates high bits!
-    vDiff32 = (vDelta32*(int64_t)(2*dTick+1))/(int64_t)math_period/2 ;
+    vDiff32 = (vDelta32*(int32_t)(2*dTick+1))/(int32_t)math_period/2 ;
 
   }
 
