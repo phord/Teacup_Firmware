@@ -295,16 +295,19 @@ void do_math( uint16_t tick ) {
 //      dStep, dStepPrev, dStepNext, dsDelta );
 }
 
+static uint64_t pos = 0;
+void do_step() {
+  //=== [STEP] ===
+  ++pos ;
+  printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
+}
+
 void do_motion( int v, int a, int d ) {
   uint64_t tick, dTick=0, tStep=0;
-  uint64_t math_period_remainder=0;
-  uint64_t pos = 0;
+  uint32_t math_period_remainder=0;
   const int64_t divisor = f*f;    // Common denominator
   int64_t remainder = divisor/2;  // Forward bias to round up
   uint64_t min_tick = f*50/1000000;// Minimum timer ISR cycle time (50us)
-//  uint64_t f_inv = (1<<31) / f;  // 1/(2f) = 0x6b, leaving 26 leading zero bits
-//  #define f_inv_shift 51
-//  uint64_t f_inv = (1ULL<<f_inv_shift) / f;  // 1/(2f) * 2^51
 
   // Const, but cannot be declared const yet
   math_period = f * 2 / 1000 ;   // Ticks per 2ms
@@ -313,11 +316,13 @@ void do_motion( int v, int a, int d ) {
   // Prime our calculations
   do_math(math_period);
 
-  uint64_t vDiff = vDelta;
+  uint64_t vDiff = vDelta; // TODO: Is this right?  Might be too big sometimes?
 
   printf("# dx=%u  Ts=%u  Td=%u  Te=%u\n" , d, m.ts, m.td, m.te );
   printf("# ticks, seconds, velocity, position (calculated), position (accumulated)\n");
   for (tick = 0 ; tick < m.te ; tick+=dTick ) {
+
+    //------------------------------------------------------------------------------ INTERRUPT SERVICE ROUTINE
 
 //    printf("# ==> %lu %f %f %f %lu %lu  (%lu, %lu)\n", tick, t(tick), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
 
@@ -329,20 +334,21 @@ void do_motion( int v, int a, int d ) {
 
     vNow += vDiff ;
 
-    // HACK: Record interim progress
-//    if ( remainder + min_tick*f < divisor )
-//      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
-
     if ( remainder + min_tick*f >= divisor ) {
-      //=== [STEP] ===
-      ++pos ;
       remainder -= divisor;
-      printf("%lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
+      do_step();
+      // Remember the time (now) of our last step
       tStep = tick;
 
       // Linear approximation (close enough in small bursts)
       dStep += dsDelta ;
     }
+//    else
+//    {
+//      // HACK: Record interim progress
+//      printf(" %lu %f %f %f %f %lu %lu  %lu, %lu\n", tick, t(tick), vNext/(float)(f), vNow/(float)(f), trapezoidal_position(tick), pos, dTick , tick - tStep, remainder/f);
+//
+//    }
 
 //    printf("#     tick=%lu remainder=%lu  tStep=%lu  dStep=%u  ",tick, math_period_remainder, tStep, dStep ) ;
 
