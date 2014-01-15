@@ -216,21 +216,22 @@ void plan_trapezoidal(uint32_t v, uint32_t a, uint32_t dx) {
 //  // calculate amax for each axis and then choose the lowest amax from all axes and use that to plan each axis.
 //}
 
+//_____________________________________
 void do_math( uint16_t tick );
+void do_motion( int v, int a, int d );
 
+//_____________________________________
 void plan(uint64_t v, uint64_t a, uint64_t dx) {
   plan_trapezoidal(v,a,dx);
 }
-
+//_____________________________________
 const char * shortopts = "a:v:d:";
 struct option opts[] = {
   { "acceleration", required_argument, NULL, 'a' },
   { "velocity",     required_argument, NULL, 'v' },
   { "distance",     required_argument, NULL, 'd' },
 };
-
-void do_motion( int v, int a, int d );
-
+//_____________________________________
 void main(int argc, char ** argv) {
   int c;
 
@@ -247,11 +248,11 @@ void main(int argc, char ** argv) {
 
   do_motion( v, a, d ) ;
 }
-
-
+//_____________________________________
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
+//_____________________________________
 uint64_t math_period ; //= f * 2 / 1000 ;   // Ticks per 2ms
 // Do the math for our next step(s)
 uint64_t vNow = 0;
@@ -264,6 +265,7 @@ uint32_t dStep = 0;
 uint32_t dStep32 = 0;
 int32_t dsDelta = 0;
 
+//_____________________________________
 void do_math( uint16_t tick ) {
   static uint32_t dStepNext = 0;
   uint32_t dStepPrev = 0;
@@ -311,7 +313,7 @@ void do_math( uint16_t tick ) {
       (float)vPrev32/SCALAR_DIV, (float)vNext32/SCALAR_DIV , (float)vDelta32/SCALAR_DIV,
       dStep, dStepPrev, dStepNext, dsDelta );
 }
-
+//_____________________________________
 static uint64_t pos = 0;
 static uint32_t pos32 = 0;
 uint64_t tick, dTick=0, tStep=0, tStep32=0;
@@ -319,6 +321,7 @@ int64_t divisor;
 int64_t divisor32;
 int64_t remainder64 ;
 int64_t remainder32 ;
+//_____________________________________
 void do_step() {
   //=== [STEP] ===
   ++pos ;
