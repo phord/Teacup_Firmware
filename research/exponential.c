@@ -253,7 +253,7 @@ void main(int argc, char ** argv) {
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
 //_____________________________________
-uint64_t math_period ; //= f * 2 / 1000 ;   // Ticks per 2ms
+uint32_t math_period ; //= f * 2 / 1000 ;   // Ticks per 2ms
 // Do the math for our next step(s)
 uint64_t vNow = 0;
 uint64_t vNext = 0;
@@ -316,7 +316,7 @@ void do_math( uint16_t tick ) {
 //_____________________________________
 static uint64_t pos = 0;
 static uint32_t pos32 = 0;
-uint64_t tick;
+uint32_t tick;
 uint32_t tStep=0, tStep32=0, dTick=0 ;
 int64_t divisor;
 int32_t divisor32;
