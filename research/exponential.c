@@ -303,7 +303,39 @@ void do_math( uint16_t tick ) {
   //    and then use addition/remainder method to determine when to advance and by how much
   dStep32 = dStep = (dStepNext + dStepPrev)/2;
 
-  int64_t nSteps = (tick + dStep/2 ) / dStep ;
+  /* We are making a mistake in the first step calculation, and maybe in future
+   * ones, too.  We are ignoring the average velocity when we calculate nSteps
+   * and using our average dStep instead, which may be wrong already.  So this
+   * leads us to think we have no steps occuring during our first math_period.
+   * This needs to be re-done, but I am out of time now.  Leaving this note
+   * as a reminder.
+      uint64_t vAvg = (vNext + vPrev ) / 2 ;
+      //etc.
+   *
+   *  This nSteps calc works ok, except it relies on a bogus dStepPrev
+   *  on the first step:
+   *    int64_t nSteps = (vNext + vPrev ) * tick / 2 / f / f ;
+   *    dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / (nSteps + 1);
+   *
+   */
+
+  /* Even better (genius?) idea:
+   * Convert this to work like so:
+   *  Calculate number of steps in this math_period, same as we do now.
+   *  Estimate dStep = tick / (nSteps+1);
+   *  Refine estimate using "remainder" method and binary search to find
+   *    exactly right dStep for the next step.
+   *    o Each binary search calculation should use the right veloc(dStep) calc.
+   *    o We can do the multiply-math in 32-bits for most steps, and then just
+   *      add or subtract this amount to the 64-bit remainder so we can compare
+   *      it to f*f.
+   *  Continue refining for each subsequent step beginning with the previous
+   *  step value, after we step, outside of the interrupt.  If we run out
+   *  of time on a step, detect that and give up, but keep accumulating
+   *  in remainder as normal.
+   */
+
+  int64_t nSteps = (vNext + vPrev ) * tick / 2 / f / f ;
   dsDelta = ((int64_t)dStepNext - (int64_t)dStepPrev) / (nSteps + 1);
 
   // vDelta is per-period, not per-step
