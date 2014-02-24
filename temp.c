@@ -315,16 +315,22 @@ void temp_sensor_tick() {
     sersendf_P(PSTR("\n"));
 }
 
-/// report whether all temp sensors are reading their target temperatures
-/// used for M116 and friends
+/**
+ * Report whether all temp sensors in use are reading their target
+ * temperatures. Used for M116 and friends.
+ */
 uint8_t	temp_achieved() {
 	temp_sensor_t i;
 	uint8_t all_ok = 255;
 
 	for (i = 0; i < NUM_TEMP_SENSORS; i++) {
-		if (temp_sensors_runtime[i].temp_residency < (TEMP_RESIDENCY_TIME*100))
+    if (temp_sensors_runtime[i].target_temp > 0 &&
+        temp_sensors_runtime[i].temp_residency < (TEMP_RESIDENCY_TIME*100))
 			all_ok = 0;
 	}
+#ifdef SIMULATOR
+  all_ok = 255;   // Simulator temperature is always ok
+#endif
 	return all_ok;
 }
 
