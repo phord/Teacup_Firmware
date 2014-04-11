@@ -40,11 +40,7 @@ DDA BSS movebuffer[MOVEBUFFER_SIZE];
 /// check if the queue is completely full
 uint8_t queue_full() {
 	MEMORY_BARRIER();
-	if (mb_tail > mb_head) {
-		return ((mb_tail - mb_head - 1) == 0) ? 255 : 0;
-	} else {
-		return ((mb_tail + MOVEBUFFER_SIZE - mb_head - 1) == 0) ? 255 : 0;
-	}
+	return (MB_NEXT(mb_head) == mb_tail) ? 255 : 0;
 }
 
 /// check if the queue is completely empty
@@ -108,8 +104,7 @@ void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 	while (queue_full())
 		delay_us(100);
 
-	uint8_t h = mb_head + 1;
-	h &= (MOVEBUFFER_SIZE - 1);
+	uint8_t h = MB_NEXT(mb_head);
 
 	DDA* new_movebuffer = &(movebuffer[h]);
 
@@ -148,7 +143,7 @@ void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 
 /// go to the next move.
 /// be aware that this is sometimes called from interrupt context, sometimes not.
-/// Note that if it is called from outside an interrupt it must not/can not by
+/// Note that if it is called from outside an interrupt it must not/can not
 /// be interrupted such that it can be re-entered from within an interrupt.
 /// The timer interrupt MUST be disabled on entry. This is ensured because
 /// the timer was disabled at the start of the ISR or else because the current
@@ -157,8 +152,7 @@ void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 void next_move() {
 	while ((queue_empty() == 0) && (movebuffer[mb_tail].live == 0)) {
 		// next item
-		uint8_t t = mb_tail + 1;
-		t &= (MOVEBUFFER_SIZE - 1);
+    uint8_t t = MB_NEXT(mb_tail);
 		DDA* current_movebuffer = &movebuffer[t];
 		// tail must be set before setTimer call as setTimer
 		// reenables the timer interrupt, potentially exposing

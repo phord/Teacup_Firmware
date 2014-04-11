@@ -14,6 +14,8 @@
 extern uint8_t	mb_head;
 extern uint8_t	mb_tail;
 extern DDA movebuffer[MOVEBUFFER_SIZE];
+// Find the next DDA index after 'x', where 0 <= x < MOVEBUFFER_SIZE
+#define MB_NEXT(x) ((x) < MOVEBUFFER_SIZE-1 ? (x)+1 : 0)
 
 /*
 	methods
