@@ -1,0 +1,90 @@
+*** TODO: Convert the math in here to use Latex for Markdown
+          create new reprap document about 'acceleration' and add this to it.
+          Separate generic formulas from constant-acceleration ones
+          Discuss the results in constant-accel and linear-accel sections
+          Add more discussion on Accel-period, cruise-period, decel-period
+***
+
+
+Here are some useful formulas to calculate the motion of constant acceleration:
+
+  Given:
+    x = distance to move
+    acc = acceleration constant (-acc for deceleration)
+    Vmax = maximum allowed velocity
+
+  We can calculate:
+    Ts = start time, period of acceleration or deceleration
+    Tc = cruise time, period of constant velocity
+    Vc = maximum attainable velocity, given acc and dx
+
+
+  Using these relations:
+    dVelocity = acceleration * time
+    dPosition = velocity * time (constant velocity)
+
+Constant acceleration gives linear velocity changes.  This allows us to use the average velocity during a constant acceleration period to calculate the change in position (dPosition) over that time period.
+
+  For constant acceleration:
+    dPosition = ((vStart + vEnd) / 2) * time
+    vEnd = vStart + acceleration * time
+
+  We can combine these two equations to get:
+    dPosition = ((vStart + vStart + acceleration * time) / 2 ) * time
+              = (vStart*2 + acceleration * time) * time / 2
+              = vStart*2*time/2 + acceleration * time * time / 2
+              = vStart * time + 1/2 * acceleration * time^2
+
+
+=== Acceleration period ===
+
+During the acceleration period velocity increases from 0 to Vc over the time period time=0 to time=Ts using this equation:
+
+  velocity = acceleration * time
+  
+We can determine the time at which we will reach maximum velocity by substituting Vmax for v and solving for t:
+
+  time = Vmax / acc
+
+We call this the startup time, or Ts.  This is the same amount of time it will take us to decelerate back to zero velocity. So far we are ignoring position.  We need to ensure we do not move farther than our desired position.  We move the same distance during acceleration and deceleration.  Therefore, our movement during acceleration and deceleration is this:
+
+    dPosition = 2 * (vStart * time + 1/2 * acceleration * time^2)
+              = 2 * (0 * time + 1/2 * acceleration * time^2)
+              = acceleration * time^2
+
+And we can calculate the maximum acceleration and deceleration time, Ts, by assigning half of our total distance 'x' for dPosition.
+
+    dPosition = 1/2 * acceleration * time^2
+    x/2 = 1/2 * acceleration * Ts^2
+    x = acceleration * Ts^2
+    Ts^2 = x / acceleration
+    Ts = sqrt( x / acceleration )
+
+And since
+    velocity = acceleration * time
+
+We know that Vc, the maximum velocity we can attain, limited by Ts is:
+
+    velocity = acceleration * time
+         Vc <= acceleration * Ts
+            <= acceleration * sqrt( x / acceleration )
+            <= sqrt( acceleration^2 ) * sqrt( x / acceleration )
+            <= sqrt( x * acceleration^2 / acceleration )
+            <= sqrt( x * acceleration )
+
+         Vc <= sqrt( x * acceleration )
+
+Vc is also limited by our given maximum velocity, Vmax.
+
+         Vc <= Vmax
+
+Therefore, our maximum achievable velocity given acceleration, x and Vmax is:
+
+    Vc = min( Vmax , sqrt(x * acceleration) )
+
+And now Ts is simplified to this:
+
+    velocity = acceleration * time
+          Vc = acceleration * Ts
+          Ts = Vc / acceleration
+
