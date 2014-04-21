@@ -266,7 +266,12 @@ const uint8_t msbloc (uint32_t v) {
  *       too high at very low acceleration. Test code see commit message.
  */
 uint32_t acc_ramp_len(uint32_t feedrate, uint32_t steps_per_m) {
+
+#if defined(ACCELERATION_REPRAP) || defined(ACCELERATION_RAMPING) || defined(ACCELERATION_TEMPORAL)
   return (feedrate * feedrate) /
          (((uint32_t)7200000UL * ACCELERATION) / steps_per_m);
+#else
+  return 0;
+#endif
 }
 

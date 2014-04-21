@@ -87,17 +87,21 @@ void dda_new_startpoint(void) {
     startpoint_steps.axis[i] = um_to_steps(startpoint.axis[i], i);
 }
 
-/*! CREATE a dda given current_position and a target, save to passed location so we can write directly into the queue
+/*! CREATE a dda given current_position and a target, save to passed location so we
+ * can write directly into the queue
 	\param *dda pointer to a dda_queue entry to overwrite
 	\param *target the target position of this move
 
 	\ref startpoint the beginning position of this move
 
-	This function does a /lot/ of math. It works out directions for each axis, distance travelled, the time between the first and second step
+	This function does a /lot/ of math. It works out directions for each axis, distance
+	travelled, the time between the first and second step
 
-	It also pre-fills any data that the selected accleration algorithm needs, and can be pre-computed for the whole move.
+	It also pre-fills any data that the selected accleration algorithm needs, and can
+	be pre-computed for the whole move.
 
-	This algorithm is probably the main limiting factor to print speed in terms of firmware limitations
+	This algorithm is probably the main limiting factor to print speed in terms of
+	firmware limitations
  *
  * Regarding lookahead, we can distinguish everything into these cases:
  *

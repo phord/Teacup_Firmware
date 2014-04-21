@@ -85,8 +85,10 @@ typedef struct {
 	\struct DDA
 	\brief this is a digital differential analyser data struct
 
-	This struct holds all the details of an individual multi-axis move, including pre-calculated acceleration data.
-	This struct is filled in by dda_create(), called from enqueue(), called mostly from gcode_process() and from a few other places too (eg \file homing.c)
+	This struct holds all the details of an individual multi-axis move,
+	including pre-calculated acceleration data.
+	This struct is filled in by dda_create(), called from enqueue(), called
+	mostly from gcode_process() and from a few other places too (eg \file homing.c)
 */
 typedef struct {
 	/// this is where we should finish
@@ -125,6 +127,7 @@ typedef struct {
 
 	#ifdef ACCELERATION_REPRAP
 	uint32_t					end_c; ///< time between 2nd last step and last step
+  int32_t           n;     // HACK: Copied here from RAMPING because it's used somewhere
 	#endif
 	#ifdef ACCELERATION_RAMPING
   /// precalculated step time offset variable
