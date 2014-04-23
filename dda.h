@@ -4,6 +4,7 @@
 #include	<stdint.h>
 
 #include	"config_wrapper.h"
+#include "linear_math.h"
 
 #ifdef ACCELERATION_REPRAP
 	#ifdef ACCELERATION_RAMPING
@@ -61,12 +62,22 @@ typedef struct {
 */
 typedef struct {
 	// bresenham counters
-  axes_int32_t      counter; ///< counter for total_steps vs each axis
-
+  axes_int32_t      counter;          ///< counter for total_steps vs each axis
 	// step counters
   axes_uint32_t     steps;   ///< number of steps on each axis
 
-	#ifdef ACCELERATION_RAMPING
+  #ifdef ACCELERATION_BRESENHAM
+  int32_t           accel_counter;    ///< counter for steps/sec vs acceleration
+  uint32_t          velocity_counter; ///< counter for steps/sec vs velocity (dAccel/dt)
+  uint32_t          velocity;         ///< velocity as steps/sec
+  uint32_t          accel_steps;      ///< count of steps needed for accel/decel (calculated during move)
+  // TODO: In exponential acceleration, count missed steps instead of hit steps?
+  uint32_t          steps_to_go;      ///< remaining steps for this move
+  enum { ACCEL=1, CRUISE=0, DECEL=-1 , MERGE=2} phase ;
+
+  uint32_t          acceleration;     ///< acceleration limit scaled for fast axis
+  #endif
+	#if defined ACCELERATION_RAMPING || defined ACCELERATION_BRESENHAM
 	/// counts actual steps done
 	uint32_t					step_no;
 	#endif
@@ -124,6 +135,10 @@ typedef struct {
   uint32_t          fast_spm;    ///< steps per meter of the fast axis
 
 	uint32_t					c; ///< time until next step, 24.8 fixed point
+#ifdef ACCELERATION_BRESENHAM
+  uint32_t          ticks_per_second; ///< timer ticks per second
+  uint32_t          vmax;             ///< max velocity of the fast axis in steps/tick, 0.32 fixed point
+#endif
 
 	#ifdef ACCELERATION_REPRAP
 	uint32_t					end_c; ///< time between 2nd last step and last step

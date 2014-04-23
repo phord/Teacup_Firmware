@@ -24,11 +24,16 @@ vslope = linear_init( 30000 , 500 )
 # Linear approximation of position by varying velocity
 pslope = linear_init( 30000 , 0 )
 for i in range(30000):
+	# Trace velocity slope based on constant accel
 	(vstep, vslope) = linear_step(vslope)
-	(pstep, pslope) = linear_step(pslope)
 	v+=vstep
+
+	# trace position based on current velocity
+	(pstep, pslope) = linear_step(pslope)
 	p+=pstep
+
 	if vstep:
+		# Apply changed velocity to position slope
 		pslope = linear_accel(pslope, vstep)
 	if pstep or vstep: print i,v,p
 	

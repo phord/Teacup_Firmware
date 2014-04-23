@@ -259,9 +259,11 @@ void dda_create(DDA *dda, TARGET *target) {
     //       ACCELERATION_TEMPORAL above. This should make re-calculating the
     //       allowed F easier.
     c_limit = 0;
-    for (i=X; i <= AXIS_COUNT; i++) {
+    for (i=X; i < AXIS_COUNT; i++) {
     // check each axis
       c_limit_calc = ((delta_um[i] * 2400L) / dda->total_steps * (F_CPU / 40000) / maximum_feedrate[i]) << 8;
+//      sersendf_P("{DDA:CL i:%d cl:%lu  clc:%lu   dum:%lu   ts:%lu  mf:%lu}\n", i, c_limit, c_limit_calc,
+//          delta_um[i], dda->total_steps, maximum_feedrate[i]);
       if (c_limit_calc > c_limit)
         c_limit = c_limit_calc;
     }
@@ -378,7 +380,27 @@ void dda_create(DDA *dda, TARGET *target) {
       }
 
 			dda->c <<= 8;
-		#else
+    #elif defined ACCELERATION_BRESENHAM
+      // c is in us/step * 256
+      // move_duration is in millimeter microseconds per step minute
+      //dda->c = (move_duration / target->F) << 8;
+
+      // Experiment: Use a fixed ticks_per_second for new velocity math
+      // For now, use 18; in future, determine log2(fast-axis-feedrate)+2
+#define TEST_STEPS_PER_SECOND 14
+      dda->ticks_per_second = 1<<(TEST_STEPS_PER_SECOND+2);
+      dda->c = F_CPU >> ((TEST_STEPS_PER_SECOND+2) - 8) ;
+      // Find Vmax in steps/tick (0.32)
+      dda->vmax = (0x80000000 / (dda->c >>8))<<1; // steps/tick
+
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("\n{DDA:BR md:%lu, c:%lu"), move_duration, dda->c>>8);
+//      if (dda->c < c_limit)
+//        dda->c = c_limit;
+//      dda->ticks_per_second = F_CPU / (dda->c>>8);
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR(", c2:%lu, tps:%lu  vm:%lu}\n"), dda->c>>8, dda->ticks_per_second, dda->vmax);
+    #else
 			dda->c = (move_duration / target->F) << 8;
 			if (dda->c < c_limit)
 				dda->c = c_limit;
@@ -436,15 +458,42 @@ void dda_start(DDA *dda) {
 		// initialise state variable
 		move_state.counter[X] = move_state.counter[Y] = move_state.counter[Z] = \
 			move_state.counter[E] = -(dda->total_steps >> 1);
-		memcpy(&move_state.steps[X], &dda->delta[X], sizeof(uint32_t) * 4);
+		memcpy(&move_state.steps[X], &dda->delta[X], sizeof(uint32_t) * AXIS_COUNT);
     move_state.endstop_stop = 0;
-		#ifdef ACCELERATION_RAMPING
+    #if defined ACCELERATION_RAMPING || defined ACCELERATION_BRESENHAM
 			move_state.step_no = 0;
 		#endif
 		#ifdef ACCELERATION_TEMPORAL
 		move_state.time[X] = move_state.time[Y] = \
 			move_state.time[Z] = move_state.time[E] = 0UL;
 		#endif
+    #ifdef ACCELERATION_BRESENHAM
+      /* Acceleration (mm/s/s) * steps/m * m/1000mm => steps/sec/sec
+       A * STEPS_PER_M / 1000 * 1sec/ticks-per-sec * 1sec/ticks-per-sec = steps/tick^2
+       0 < steps/tick^2 < 1
+       So, steps/tick^2 * 2^32 = fractional representation of steps/tick^2
+       A * STEPS_PER_M / 1000 * 65536 * 65536 * 1sec/ticks-per-sec * 1sec/ticks-per-sec = steps/tick^2
+       Suppose we choose ticks/sec which is always a power of two.
+       A * STEPS_PER_M / 1000 * 2^32 / 2^(2n) = A * STEPS_PER_M / 1000 * 2^(32-2n)
+
+       So, assume we use ticks/sec = 2^14 (16384), which is 1221 cycles/tick
+       A * STEPS_PER_M / 1000 * 2^(32-2*14) = A*STEPS_PER_M / 1000 * 16
+       This is the fractional part (this/2^32) of how much velocity changes on each timer tick.
+       The calculated (summed) velocity V will be in fractions of steps/tick.
+       Each tick results in a position change of V.
+       V cannot exceed 1 (step/tick), so the velocity_counter will only roll over once per tick at most.
+ * s = 1/2 * a * t^2, v = a * t ==> s = v^2 / (2 * a)
+ */
+      move_state.acceleration = ACCELERATION;
+      move_state.accel_counter = move_state.velocity_counter = 0;
+      move_state.velocity = move_state.accel_steps = 0;
+      move_state.steps_to_go = dda->total_steps;
+      move_state.phase = ACCEL;
+
+      // Change in velocity per-tick (TODO: Make this all-constant so it's a compile-time effort)
+      move_state.acceleration = ((uint32_t)(ACCELERATION * dda->fast_spm) << (32-2*14))/ 1000 ;
+
+      #endif
 
 		// ensure this dda starts
 		dda->live = 1;
@@ -470,15 +519,60 @@ void dda_start(DDA *dda) {
 void dda_step(DDA *dda) {
   enum axis_e i;
 
+#ifdef ACCELERATION_BRESENHAM
+  int skip_step = 1;
+  static uint32_t allsteps = 0;
+  allsteps++;
+
+  if ( move_state.phase == ACCEL) {
+    if (move_state.velocity >= dda->vmax)
+      move_state.phase = CRUISE;
+
+    // Accelerating, but didn't reach target F
+    if (move_state.step_no >= move_state.steps_to_go)
+      move_state.phase = DECEL;
+  }
+
+  if (move_state.phase == CRUISE && move_state.accel_steps >= move_state.steps_to_go) {
+    move_state.phase = DECEL;
+    //move_state.accel_counter = move_state.velocity_counter = (dda->ticks_per_second >> 1);
+  }
+  if (move_state.phase == ACCEL )
+    move_state.velocity += ACCELERATION;
+  else if (move_state.phase == DECEL )
+    move_state.velocity -= ACCELERATION;
+//    // TODO: HACK HACK Why this ugly HACK?
+//    // Decelerating and velocity=0; idle at v=10 until steps are consumed
+//    if ( move_state.phase == DECEL && move_state.velocity < 2)
+//      move_state.velocity = 1;
+
+    move_state.velocity_counter += move_state.velocity;
+    if ( move_state.velocity_counter < move_state.velocity) {// overflow
+      skip_step = 0;
+      move_state.accel_steps += move_state.phase;
+      move_state.steps_to_go--;
+      move_state.step_no++;
+
+    sersendf_P(PSTR("\n{DDA:BR #%lu  as: %lu  tps:%lu  ac:%ld  vc:%lu  v:%lu  ph:%ld  st:%lu  stg:%lu}\n"), move_state.step_no , allsteps, dda->ticks_per_second, move_state.accel_counter,
+          move_state.velocity_counter, move_state.velocity, move_state.phase, move_state.accel_steps, move_state.steps_to_go);
+    }
+
+
+#endif
 
 #if ! defined ACCELERATION_TEMPORAL
-  for (i = X; i < AXIS_COUNT; i++) {
-    if (move_state.steps[i]) {
-      move_state.counter[i] -= dda->delta[i];
-      if (move_state.counter[i] < 0) {
-        do_step(i);
-        move_state.steps[i]--;
-        move_state.counter[i] += dda->total_steps;
+  #ifdef ACCELERATION_BRESENHAM
+    if (!skip_step)
+  #endif
+  {
+    for (i = X; i < AXIS_COUNT; i++) {
+      if (move_state.steps[i]) {
+        move_state.counter[i] -= dda->delta[i];
+        if (move_state.counter[i] < 0) {
+          do_step(i);
+          move_state.steps[i]--;
+          move_state.counter[i] += dda->total_steps;
+        }
       }
     }
   }
@@ -490,7 +584,7 @@ void dda_step(DDA *dda) {
   move_state.last_time = move_state.time[i];
 #endif
 
-	#if STEP_INTERRUPT_INTERRUPTIBLE && ! defined ACCELERATION_RAMPING
+	#if STEP_INTERRUPT_INTERRUPTIBLE && ! defined ACCELERATION_RAMPING && ! defined ACCELERATION_BRESENHAM
 		// Since we have sent steps to all the motors that will be stepping
 		// and the rest of this function isn't so time critical, this interrupt
 		// can now be interruptible by other interrupts.
@@ -527,7 +621,7 @@ void dda_step(DDA *dda) {
 		}
 	#endif
 
-	#ifdef ACCELERATION_RAMPING
+  #if defined ACCELERATION_RAMPING
 		move_state.step_no++;
 	#endif
 
@@ -710,17 +804,16 @@ void dda_clock() {
         // but start deceleration here.
         ATOMIC_START
           move_state.endstop_stop = 1;
-          if (move_state.step_no < dda->rampup_steps)  // still accelerating
+          if (move_state.step_no < dda->rampup_steps) { // still accelerating
             dda->total_steps = move_state.step_no * 2;
-          else
-            // A "-=" would overflow earlier.
-            dda->total_steps = dda->total_steps - dda->rampdown_steps +
-                               move_state.step_no;
-          dda->rampdown_steps = move_state.step_no;
+            dda->rampdown_steps = move_state.step_no;
+          } else if (dda->total_steps > dda->rampdown_steps + move_state.step_no )  // not yet decelerating
+              dda->total_steps = dda->rampdown_steps + move_state.step_no;
         ATOMIC_END
         // Not atomic, because not used in dda_step().
         dda->rampup_steps = 0; // in case we're still accelerating
       #else
+        // TODO: ACCELERATION_BRESENHAM like ACCELERATION_RAMPING
         dda->live = 0;
       #endif
 
