@@ -383,15 +383,21 @@ void dda_create(DDA *dda, TARGET *target) {
     #elif defined ACCELERATION_BRESENHAM
       // c is in us/step * 256
       // move_duration is in millimeter microseconds per step minute
-      //dda->c = (move_duration / target->F) << 8;
+      dda->c = (move_duration / target->F) << 8;
+
+      // Target feedrate in steps/second
+      // target->F * dda->fast_spm / 1000 / 60 = steps/second (hypotenuse)
+      dda->c = (60 * F_CPU) / (target->F ) * 1000 / dda->fast_spm ;
+
+      // Find Vmax in steps/tick (0.32)
+      dda->vmax = (0x80000000 / (dda->c >>8))<<1; // steps/tick
 
       // Experiment: Use a fixed ticks_per_second for new velocity math
       // For now, use 18; in future, determine log2(fast-axis-feedrate)+2
 #define TEST_STEPS_PER_SECOND 14
-      dda->ticks_per_second = 1<<(TEST_STEPS_PER_SECOND+2);
-      dda->c = F_CPU >> ((TEST_STEPS_PER_SECOND+2) - 8) ;
-      // Find Vmax in steps/tick (0.32)
-      dda->vmax = (0x80000000 / (dda->c >>8))<<1; // steps/tick
+      dda->ticks_per_second = F_CPU / (dda->c >> 8);
+//      dda->c = F_CPU >> (TEST_STEPS_PER_SECOND - 8) ;
+      dda->vmax = (0x80000000 / (dda->c >>8))<<8; // steps/tick
 
       if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
         sersendf_P(PSTR("\n{DDA:BR md:%lu, c:%lu"), move_duration, dda->c>>8);
@@ -399,7 +405,7 @@ void dda_create(DDA *dda, TARGET *target) {
 //        dda->c = c_limit;
 //      dda->ticks_per_second = F_CPU / (dda->c>>8);
       if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
-        sersendf_P(PSTR(", c2:%lu, tps:%lu  vm:%lu}\n"), dda->c>>8, dda->ticks_per_second, dda->vmax);
+        sersendf_P(PSTR(", c2:%lu, tps:%lu  f:%lu  vm:%lu}\n"), dda->c>>8, dda->ticks_per_second, (dda->c>>8) * dda->ticks_per_second, dda->vmax);
     #else
 			dda->c = (move_duration / target->F) << 8;
 			if (dda->c < c_limit)
@@ -472,7 +478,7 @@ void dda_start(DDA *dda) {
        A * STEPS_PER_M / 1000 * 1sec/ticks-per-sec * 1sec/ticks-per-sec = steps/tick^2
        0 < steps/tick^2 < 1
        So, steps/tick^2 * 2^32 = fractional representation of steps/tick^2
-       A * STEPS_PER_M / 1000 * 65536 * 65536 * 1sec/ticks-per-sec * 1sec/ticks-per-sec = steps/tick^2
+       A * STEPS_PER_M / 1000 * 2^32 * 1sec/ticks-per-sec * 1sec/ticks-per-sec = steps/tick^2
        Suppose we choose ticks/sec which is always a power of two.
        A * STEPS_PER_M / 1000 * 2^32 / 2^(2n) = A * STEPS_PER_M / 1000 * 2^(32-2n)
 
@@ -485,13 +491,15 @@ void dda_start(DDA *dda) {
  * s = 1/2 * a * t^2, v = a * t ==> s = v^2 / (2 * a)
  */
       move_state.acceleration = ACCELERATION;
-      move_state.accel_counter = move_state.velocity_counter = 0;
+
+      // Change in velocity per-tick (TODO: Make this all-constant so it's a compile-time effort)
+      //move_state.acceleration = ((uint32_t)(ACCELERATION * dda->fast_spm) * ((uint64_t)1 << (32-(2*(TEST_STEPS_PER_SECOND+2)))))/ 1000 ;
+      move_state.acceleration = (uint32_t) ((((uint64_t)(ACCELERATION * dda->fast_spm)) << 32) / dda->ticks_per_second / dda->ticks_per_second / 1000) ;
+
+      move_state.accel_counter = move_state.velocity_counter = 0 ;
       move_state.velocity = move_state.accel_steps = 0;
       move_state.steps_to_go = dda->total_steps;
       move_state.phase = ACCEL;
-
-      // Change in velocity per-tick (TODO: Make this all-constant so it's a compile-time effort)
-      move_state.acceleration = ((uint32_t)(ACCELERATION * dda->fast_spm) << (32-2*14))/ 1000 ;
 
       #endif
 
@@ -538,13 +546,9 @@ void dda_step(DDA *dda) {
     //move_state.accel_counter = move_state.velocity_counter = (dda->ticks_per_second >> 1);
   }
   if (move_state.phase == ACCEL )
-    move_state.velocity += ACCELERATION;
+    move_state.velocity += move_state.acceleration;
   else if (move_state.phase == DECEL )
-    move_state.velocity -= ACCELERATION;
-//    // TODO: HACK HACK Why this ugly HACK?
-//    // Decelerating and velocity=0; idle at v=10 until steps are consumed
-//    if ( move_state.phase == DECEL && move_state.velocity < 2)
-//      move_state.velocity = 1;
+    move_state.velocity -= move_state.acceleration;
 
     move_state.velocity_counter += move_state.velocity;
     if ( move_state.velocity_counter < move_state.velocity) {// overflow
@@ -553,8 +557,10 @@ void dda_step(DDA *dda) {
       move_state.steps_to_go--;
       move_state.step_no++;
 
-    sersendf_P(PSTR("\n{DDA:BR #%lu  as: %lu  tps:%lu  ac:%ld  vc:%lu  v:%lu  ph:%ld  st:%lu  stg:%lu}\n"), move_state.step_no , allsteps, dda->ticks_per_second, move_state.accel_counter,
-          move_state.velocity_counter, move_state.velocity, move_state.phase, move_state.accel_steps, move_state.steps_to_go);
+    sersendf_P(PSTR("\n{DDA:BR #%lu  as: %lu  tps:%lu  vm:%ld  vc:%lu  "
+        "v:%lu  ph:%ld  st:%lu  stg:%lu}\n"), move_state.step_no , allsteps,
+        dda->ticks_per_second, dda->vmax, move_state.velocity_counter,
+        move_state.velocity, move_state.phase, move_state.accel_steps, move_state.steps_to_go);
     }
 
 
