@@ -167,6 +167,21 @@ void sim_assert(bool cond, const char msg[]);
 void sim_gcode_ch(char ch, uint8_t parser);
 void sim_gcode(const char msg[], uint8_t parser);
 
+/* SPI bus stubs */
+#ifdef SD
+#define spi_select_sd()
+#define spi_deselect_sd()
+#endif /* SD */
+
+#ifdef TEMP_MAX6675
+#define spi_select_max6675()
+#define spi_deselect_max6675()
+#endif /* TEMP_MAX6675 */
+
+#define spi_speed_100_400()
+#define spi_speed_max()
+#define spi_rw(x) (x)
+
 /**
  * Initialize simulator timer and set time scale.
  *

@@ -7,6 +7,7 @@
 // If no time scale specified, use 1/10th real-time for simulator
 #define DEFAULT_TIME_SCALE 10
 
+#include "gcode_parse.h"
 #include "simulator.h"
 #include "data_recorder.h"
 
@@ -204,8 +205,8 @@ void sim_tick(char ch) {
   fflush(stdout);
 }
 
-static char gcode_buffer[PARSERS][300];
-static int gcode_buffer_index[PARSERS];
+static char gcode_buffer[Parser_ListSize][300];
+static int gcode_buffer_index[Parser_ListSize];
 void sim_gcode_ch(char ch, uint8_t ctx) {
   // Got CR, LF or buffer full
   if ( gcode_buffer_index[ctx] == sizeof(gcode_buffer[0])-1 ||
@@ -213,7 +214,7 @@ void sim_gcode_ch(char ch, uint8_t ctx) {
 
     // Terminate string, reset buffer, emit gcode
     if (gcode_buffer_index[ctx]) {
-      gcode_buffer[ctx][gcode_buffer_index] = 0;
+      gcode_buffer[ctx][gcode_buffer_index[ctx]] = 0;
       gcode_buffer_index[ctx] = 0;
 
       if (trace_gcode) {

@@ -17,6 +17,7 @@
 
 #include "sd.h"
 
+#ifndef SIMULATOR
 #ifdef SD
 
 #ifndef _PFATFS
@@ -164,5 +165,5 @@ FRESULT pf_readdir (DIR* dj, FILINFO* fno);                 /* Read a directory 
 #endif
 
 #endif /* _PFATFS */
-
+#endif /* SIMULATOR */
 #endif /* SD */

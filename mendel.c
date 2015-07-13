@@ -49,9 +49,9 @@
 #include	"arduino.h"
 #include	"clock.h"
 #include	"intercom.h"
-#include "simulator.h"
 #include "spi.h"
 #include "sd.h"
+#include "simulator.h"
 
 #ifdef SIMINFO
   #include "../simulavr/src/simulavr_info.h"
@@ -190,7 +190,7 @@ void io_init(void) {
 		power_off();
 	#endif
 
-  #ifdef DEBUG_LED_PIN 
+  #ifdef DEBUG_LED_PIN
     WRITE(DEBUG_LED_PIN, 0);
     SET_OUTPUT(DEBUG_LED_PIN);
   #endif
