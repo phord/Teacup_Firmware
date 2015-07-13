@@ -16,6 +16,7 @@
 #undef E_DIR_PIN
 #undef E_ENABLE_PIN
 #undef STEPPER_ENABLE_PIN
+#undef SD_CARD_SELECT_PIN
 
 #undef PS_MOSFET_PIN
 #undef PS_ON_PIN
@@ -71,7 +72,8 @@
 #define eeprom_read_word(ptr16) (*(ptr16))
 #define eeprom_write_dword(ptr32, i32) (*(ptr32)=i32)
 #define eeprom_write_word(ptr16, i16) (*(ptr16)=i16)
-
+#define loop_until_bit_is_set(SPSR, SPIF)
+extern uint8_t SPCR, SPDR, SPSR;
 typedef enum {
   // Define pins used
   X_STEP_PIN,
@@ -99,6 +101,7 @@ typedef enum {
 
   RX_ENABLE_PIN,
   TX_ENABLE_PIN,
+  SD_CARD_SELECT_PIN,
 /*
  * Not used in the simulator.  Add them to this list to enable them if needed.
   PS_MOSFET_PIN,
@@ -161,8 +164,8 @@ void sim_info(const char fmt[], ...);
 void sim_debug(const char fmt[], ...);
 void sim_error(const char msg[]);
 void sim_assert(bool cond, const char msg[]);
-void sim_gcode_ch(char ch);
-void sim_gcode(const char msg[]);
+void sim_gcode_ch(char ch, uint8_t parser);
+void sim_gcode(const char msg[], uint8_t parser);
 
 /**
  * Initialize simulator timer and set time scale.

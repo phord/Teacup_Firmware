@@ -125,7 +125,7 @@ uint8_t serial_popchar(void) {
 // send one character
 void serial_writechar(uint8_t data) {
   sim_assert(serial_initialised, "serial interface not initialised");
-  sim_gcode_ch(data);
+  sim_gcode_ch(data, ParserType_Uart);
   if (serial_fd) {
     ssize_t count;
     count = write(serial_fd, &data, 1);
@@ -137,7 +137,7 @@ void serial_writechar(uint8_t data) {
 void serial_writestr(uint8_t *data) {
   const char *str = (char *)data;
   sim_assert(serial_initialised, "serial interface not initialised");
-  sim_gcode(str);
+  sim_gcode(str, ParserType_Uart);
   if (serial_fd) {
     ssize_t count;
     count = write(serial_fd, str, strlen(str));

@@ -204,28 +204,28 @@ void sim_tick(char ch) {
   fflush(stdout);
 }
 
-static char gcode_buffer[300]; 
-static int gcode_buffer_index;
-void sim_gcode_ch(char ch) {
+static char gcode_buffer[PARSERS][300];
+static int gcode_buffer_index[PARSERS];
+void sim_gcode_ch(char ch, uint8_t ctx) {
   // Got CR, LF or buffer full
-  if ( gcode_buffer_index == sizeof(gcode_buffer)-1 ||
+  if ( gcode_buffer_index[ctx] == sizeof(gcode_buffer[0])-1 ||
        ch == '\r' || ch == '\n' || ch == 0 ) {
 
     // Terminate string, reset buffer, emit gcode
-    if (gcode_buffer_index) {
-      gcode_buffer[gcode_buffer_index] = 0;
-      gcode_buffer_index = 0;
+    if (gcode_buffer_index[ctx]) {
+      gcode_buffer[ctx][gcode_buffer_index] = 0;
+      gcode_buffer_index[ctx] = 0;
 
       if (trace_gcode) {
         clearline();
         fyellow();
-        printf("%s\n", gcode_buffer);
+        printf("%s\n", gcode_buffer[ctx]);
         fbreset();
         fflush(stdout);
       }
 
       // Send gcode to data_recorder
-      record_comment(gcode_buffer);
+      record_comment(gcode_buffer[ctx]);
     }
 
     if (ch == '\r' || ch == '\n' || ch == 0)
@@ -233,12 +233,12 @@ void sim_gcode_ch(char ch) {
   }
 
   // Acumulate char from stream
-  gcode_buffer[gcode_buffer_index++] = ch;
+  gcode_buffer[ctx][gcode_buffer_index[ctx]++] = ch;
 }
 
-void sim_gcode(const char msg[]) {
-  for ( ; *msg ; msg++ ) sim_gcode_ch(*msg);
-  sim_gcode_ch(0);
+void sim_gcode(const char msg[], uint8_t ctx) {
+  for ( ; *msg ; msg++ ) sim_gcode_ch(*msg, ctx);
+  sim_gcode_ch(0, ctx);
 }
 
 void sim_error(const char msg[]) {
