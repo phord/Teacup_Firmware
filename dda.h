@@ -16,12 +16,16 @@
 enum axis_e { X = 0, Y, Z, E, AXIS_COUNT };
 
 /**
+  \typedef axes_uint32_t
+  \brief n-dimensional vector used to describe uint32_t axis information.
 
   Stored value can be anything unsigned. Units should be specified when declared.
 */
 typedef uint32_t axes_uint32_t[AXIS_COUNT];
 
 /**
+  \typedef axes_int32_t
+  \brief n-dimensional vector used to describe int32_t axis information.
 
   Stored value can be anything unsigned. Units should be specified when declared.
 */
@@ -57,9 +61,12 @@ typedef struct {
 #define TIME_REAL2SCALED(t,m) ((!m)?(t<<16):( (((uint32_t)t) * ((uint32_t)m) ))
 
 /**
- \struct VECTOR4D
- \brief 4 dimensional vector used to describe the difference between moves.
-  Units are in micrometers and usually based off 'TARGET'.
+	\struct MOVE_STATE
+	\brief this struct is made for tracking the current state of the movement
+
+	Parts of this struct are initialised only once per reboot, so make sure dda_step() leaves them with a value compatible to begin a new movement at the end of the movement. Other parts are filled in by dda_start().
+*/
+typedef struct {
 	// bresenham counters
   axes_int32_t      counter; ///< counter for total_steps vs each axis
 
@@ -159,13 +166,8 @@ typedef struct {
   #endif
 	#endif
 	#ifdef ACCELERATION_TEMPORAL
-  axes_uint32_t     step_interval;   ///< unscaled time between steps on each axis
+  axes_uint32_t     step_interval;   ///< time between steps on each axis
 	uint8_t						axis_to_step;    ///< axis to be stepped on the next interrupt
-  uint32_t          velocity_scaler_start; ///< Fixed point 16.16 multiplier to scale velocity from 0x to 1x
-  uint16_t          velocity_scaler_ramp;  ///< Velocity slope per tick * 65536
-  uint32_t          next_velocity_time;    ///< Ticks remaining in this planned linear velocity
-
-  TIME_SCALER       time_scale;      ///< Bend time to impart acceleration
 	#endif
 
 	#ifdef ACCELERATION_EXPONENTIAL
@@ -229,14 +231,5 @@ void dda_clock(void);
 
 // update current_position
 void update_current_position(void);
-
-// Raise the stepper pin on the 'n' axis
-void do_step(enum axis_e n);
-
-// Find the direction of the 'n' axis
-int get_direction(DDA *dda, enum axis_e n);
-
-// Set the direction of the 'n' axis
-void set_direction(DDA *dda, enum axis_e n, int dir);
 
 #endif	/* _DDA_H */

@@ -4,7 +4,6 @@
 	\brief Digital differential analyser - this is where we figure out which steppers need to move, and when they need to move
 */
 
-#include "simulator.h"
 #include	<string.h>
 #include	<stdlib.h>
 #include	<math.h>
@@ -236,7 +235,6 @@ void dda_create(DDA *dda, TARGET *target) {
     dda->id = idcnt++;
   #endif
 
-  // Find distance for each axis in steps
   code_axes_to_stepper_axes(&startpoint, target, delta_um, steps);
   for (i = X; i < E; i++) {
     int32_t delta_steps;
@@ -331,7 +329,7 @@ void dda_create(DDA *dda, TARGET *target) {
 		// Z is enabled in dda_start()
 		e_enable();
 
-		distance = approx_distance_3(x_delta_um, y_delta_um, z_delta_um);
+        distance = approx_distance_3(delta_um[X], delta_um[Y], delta_um[Z]);
 
 		if (distance < 2)
 			distance = delta_um[E];
@@ -339,13 +337,24 @@ void dda_create(DDA *dda, TARGET *target) {
 		if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
 			sersendf_P(PSTR(",ds:%lu"), distance);
 
-    #ifndef	ACCELERATION_TEMPORAL
-      // bracket part of this equation in an attempt to avoid overflow: 60 * 16MHz * 5mm is >32 bits
+    #ifdef	ACCELERATION_TEMPORAL
+      // bracket part of this equation in an attempt to avoid overflow:
       // 60 * 16 MHz * 5 mm is > 32 bits
-      // pre-calculate move speed in millimeter ticks per step minute for less math in interrupt context
-      // um (distance) * F_CPU ticks/sec / step (total_steps) * 1 mm/1000um * 60 sec/min = mm.ticks per step.min
+      uint32_t move_duration, md_candidate;
+
+      move_duration = distance * ((60 * F_CPU) / (target->F * 1000UL));
+      for (i = X; i < AXIS_COUNT; i++) {
+        md_candidate = dda->delta[i] * ((60 * F_CPU) /
+                       (pgm_read_dword(&maximum_feedrate_P[i]) * 1000UL));
+        if (md_candidate > move_duration)
+          move_duration = md_candidate;
+      }
+		#else
+			// pre-calculate move speed in millimeter microseconds per step minute for less math in interrupt context
+			// mm (distance) * 60000000 us/min / step (total_steps) = mm.us per step.min
+			//   note: um (distance) * 60000 == mm * 60000000
 			// so in the interrupt we must simply calculate
-			// mm.ticks per step.min / mm per min (F) = ticks per step
+			// mm.us per step.min / mm per min (F) = us per step
 
 			// break this calculation up a bit and lose some precision because 300,000um * 60000 is too big for a uint32
 			// calculate this with a uint64 if you need the precision, but it'll take longer so routines with lots of short moves may suffer
@@ -357,9 +366,12 @@ void dda_create(DDA *dda, TARGET *target) {
 			// changed distance * 6000 .. * F_CPU / 100000 to
 			//         distance * 2400 .. * F_CPU / 40000 so we can move a distance of up to 1800mm without overflowing
 			uint32_t move_duration = ((distance * 2400) / dda->total_steps) * (F_CPU / 40000);
+		#endif
 
-    // similarly, find out how fast we can run our axes.
-    // do this for each axis individually, as the combined speed of two or more
+		// similarly, find out how fast we can run our axes.
+		// do this for each axis individually, as the combined speed of two or more axes can be higher than the capabilities of a single one.
+    // TODO: instead of calculating c_min directly, it's probably more simple
+    //       to calculate (maximum) move_duration for each axis, like done for
     //       ACCELERATION_TEMPORAL above. This should make re-calculating the
     //       allowed F easier.
     c_limit = 0;
@@ -370,7 +382,6 @@ void dda_create(DDA *dda, TARGET *target) {
       if (c_limit_calc > c_limit)
         c_limit = c_limit_calc;
     }
-    #endif
 
 		#ifdef ACCELERATION_REPRAP
 		// c is initial step time in IOclk ticks
@@ -426,17 +437,11 @@ void dda_create(DDA *dda, TARGET *target) {
 		else
 			dda->accel = 0;
 		#elif defined ACCELERATION_RAMPING
-    // Get max speed in us per step
-		// yes, this assumes always the x axis as the critical one regarding acceleration. If we want to implement per-axis acceleration, things get tricky ...
+			// yes, this assumes always the x axis as the critical one regarding acceleration. If we want to implement per-axis acceleration, things get tricky ...
       dda->c_min = move_duration / target->F;
       if (dda->c_min < c_limit) {
         dda->c_min = c_limit;
         dda->endpoint.F = move_duration / dda->c_min;
-         steps = (STEPS_PER_M_X * F^2) / (7200000 * ACCELERATION)
-               = 1/2 * 1/1000 * (1/60)^2 * (STEPS_PER_M_X * F^2) / ACCELERATION
-               = 1/2000       *  1/3600  * (STEPS_PER_M_X * F^2) / ACCELERATION
-               =        1/7200000        * (STEPS_PER_M_X * F^2) / ACCELERATION
-         Note: the floating point part is static so its calculated during compilation.
       }
 
       // Lookahead can deal with 16 bits ( = 1092 mm/s), only.
@@ -473,30 +478,7 @@ void dda_create(DDA *dda, TARGET *target) {
       #endif
 
 		#elif defined ACCELERATION_TEMPORAL
-    // TODO: calculate acceleration/deceleration for each axis
-
-      // Max allowed speed on each axis express as Minimum tics/um
-      // (60 sec/min x F_CPU ticks/sec / (FEEDRATE mm/min x 1000 um/mm )) = N ticks/um
-      // bracket part of this equation in an attempt to avoid overflow: 60 * 16MHz * 5mm is >32 bits
-      uint32_t move_duration, md_candidate;
-      static const axes_uint32_t max_tics_per_um PROGMEM = {
-        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_X * 1000UL)),
-        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_Y * 1000UL)),
-        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_Z * 1000UL)),
-        ((60 * F_CPU) / (MAXIMUM_FEEDRATE_E * 1000UL))
-      };
-
-      // Commanded feedrate gives ideal duration (in ticks)
-      move_duration = distance * ((60 * F_CPU) / (target->F * 1000UL));
-
-      // Apply axis limits to find attainable duration (disregarding acceleration)
-      for (i=X; i < AXIS_COUNT; i++) {
-        md_candidate = delta_um[i] * max_tics_per_um[i];
-        if (md_candidate > move_duration)
-          move_duration = md_candidate;
-      }
-
-      // Determine step interval for each axis in ticks/step
+			// TODO: calculate acceleration/deceleration for each axis
       for (i = X; i < AXIS_COUNT; i++) {
         dda->step_interval[i] = 0xFFFFFFFF;
         if (dda->delta[i])
