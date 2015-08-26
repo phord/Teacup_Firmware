@@ -1,9 +1,9 @@
 #set terminal wxt persist raise
 set terminal png size 800,600
-set output "constant-acceleration-1.png"
+set output "accel-constant-1.png"
 
 set key left
-set title "Constant Acceleration"
+set title "Constant Acceleration : Trapezoidal Velocity"
 
 set ylabel "Velocity & Acceleration"
 set xlabel "Time [s]"
@@ -22,8 +22,8 @@ plot velocity(x), acceleration(x) with steps
 
 
 #set terminal wxt persist raise 1
-set output "constant-acceleration-2.png"
-set title "Constant Acceleration"
+set output "accel-constant-2.png"
+set title "Constant Acceleration : Trapezoidal Velocity"
 
 set ylabel "Position (Ideal)"
 set xlabel "Time [s]"
@@ -33,4 +33,4 @@ set yrange [0:2000]
 set ytics
 set xrange [0:10.]
 
-plot position(x)
+plot position(x), int(position(x)+0.5)
