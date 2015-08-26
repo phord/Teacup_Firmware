@@ -329,7 +329,7 @@ void dda_create(DDA *dda, TARGET *target) {
 		// Z is enabled in dda_start()
 		e_enable();
 
-        distance = approx_distance_3(delta_um[X], delta_um[Y], delta_um[Z]);
+    distance = approx_distance_3(delta_um[X], delta_um[Y], delta_um[Z]);
 
 		if (distance < 2)
 			distance = delta_um[E];
@@ -437,7 +437,8 @@ void dda_create(DDA *dda, TARGET *target) {
 		else
 			dda->accel = 0;
 		#elif defined ACCELERATION_RAMPING
-			// yes, this assumes always the x axis as the critical one regarding acceleration. If we want to implement per-axis acceleration, things get tricky ...
+      // yes, this assumes always the x axis as the critical one regarding acceleration.
+      // If we want to implement per-axis acceleration, things get tricky ...
       dda->c_min = move_duration / target->F;
       if (dda->c_min < c_limit) {
         dda->c_min = c_limit;
