@@ -1,0 +1,73 @@
+Stepper timing, velocity and acceleration.
+
+https://www.physicsforums.com/threads/implementing-trapezoidal-motion-profile-using-discrete-method.802388/
+Discrete time method to determine position, velocity, acceleration.
+
+    VK=V(K-1) + A
+    PK=P(K-1) + V(K-1) + A/2
+
+This is calculated once per second using these formula, where t=1:
+
+  Because of the formula for distance traveled from acceleration and velocity.
+    P = Vi×t + ½×a×(t^2)
+  Where
+    P = distance
+    Vi = velocity
+    t = time
+    a = acceleration
+
+  But because time is always (theoretically) 1 second when we calculate the distance we get:
+    P = Vi×1 + ½a×(1^2) = 1Vi + ½a×1 = Vi + ½a
+
+  But in our program we want to add the distance covered in this 1 second with the distance covered in the past. So:
+    P = P + Vi + ½a
+
+  which explains PK= PK + VK + A/2;
+
+  You are able to implement this in the program to calculate the covered distance more accurately. You only have to add
+  an acceleration variable besides the velocity and position variables and implement this. Basically you where right
+  all along with the Newtonian Physics idea.You just didn't know where time went.
+
+Reference https://www.physicsforums.com/threads/implementing-trapezoidal-motion-profile-using-discrete-method.802388/
+
+The trick here is making the time equal 1, so converting Accel and Veloc from mm/s into mm/tick or mm/us.
+
+It doesn't solve the problem of calculating the time of the next step, though.
+
+*** In my code I think I am shorting my position... am I?  I am not adding A/2 ***
+See also: http://www.pmdcorp.com/news/articles/html/Mathematics_of_Motion_Control_Profiles.html
+
+==================================
+Trapezoidal vs S-Curve velocity profiles
+http://www.pmccorp.com/support/technotes/tn1031.pdf
+
+==================================
+PVT motion looks interesting... What is this thing?
+http://support.motioneng.com/software-mpi_04_00/topics/pt_pvt_motion.htm
+Geometric Path Motion with motion merging
+http://support.motioneng.com/Software-MPI_04_02/Topics/Geometric%20Path%20Motion.htm
+Comparison of different motion types
+http://support.motioneng.com/Software-MPI_04_02/Topics/diff_mtn_types.htm
+http://support.motioneng.com/Software-MPI_04_02/Topics/scurve_jerk.htm
+
+==================================
+Sinusoidal velocity profiles
+http://www.aspe.net/publications/Spring_2001/01Sp%20Extended%20Abstracts/Arevalo.PDF
+
+==================================
+On Algorithms for Planning S-curve Motion Profiles
+http://cdn.intechopen.com/pdfs-wm/4267.pdf
+
+==================================
+http://hyperphysics.phy-astr.gsu.edu/hbase/avari.html#c1
+Motion Calculation, Variable Acceleration
+
+For a variable acceleration which can be expressed as a polynomial in time, the position
+and velocity can be calculated provided their initial values are known. .
+
+__Formula for P, V and A in 4-dimension given__
+
+The average velocity expression from the constant acceleration equations works only for constant acceleration where the graph of velocity as a function of time is a straight line, the average being the midpoint of that line over the chosen time interval. If you make c and d in the above expressions equal to zero, dropping back to constant acceleration motion, then the two expressions for average acceleration will give the same answer.
+==================================
+On Algorithms for Planning S-curve Motion Profiles
+http://cdn.intechopen.com/pdfs-wm/4267.pdf
