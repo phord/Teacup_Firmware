@@ -1,0 +1,60 @@
+#########################################################################
+# From http://hyperphysics.phy-astr.gsu.edu/hbase/avari.html#c1
+# Equations for acceleration, velocity and position when acceleration is
+# given as a polynomial wrt. time.
+#   Constant acceleration: c=0, d=0
+#   Linear acceleration: d=0
+#   Note: In this study sheet we do not use d (d=0 always)
+# x(t) = x0 + v0t + bt^2/2 + ct^3/6 + dt^4/12
+# v(t) = v0 + bt + ct^2/2 + dt^3/3
+# a(t) = b + ct + dt^2
+
+# From http://www.pmdcorp.com/news/articles/html/Mathematics_of_Motion_Control_Profiles.html
+#      http://www.pmdcorp.com/downloads/Mathematics_of_Motion_Control_Profiles.pdf
+# S-Curve Profile Equations
+#
+# Because they are third versus second-order curves, and because there are seven versus three separate
+# motion segments, point-to-point S-curves are more complicated then Trapezoids. In particular it is not
+# simple to calculate the stopping distance for a given set of profile values. Accordingly, many s-curve
+# profiling systems restrict changes-on-the-fly, or do not allow asymmetric profiles. These restrictions
+# allow information about how long, and over what distance, the profile previously took to accelerate to
+# determine when to start decelerating.
+
+# Continuous form
+# PT = P0 + V0T + 1/2A0T2 + 1/6JT3
+# VT = V0 + A0T + 1/2 JT2
+# AT = A0 + JT
+# Discrete time form
+# P(t) = PT + V(t) +1/2A(t) + 1/6J(t)
+# V(t) = V0 + A(t) + 1/2J(t)
+# A(t) = A0 + J(t)
+# where
+# P0, V0, and A0 are the starting position, velocity, and accelerations
+# PT , VT, and AT are the position, velocity, and acceleration at time T
+# J is the profile jerk (time rate of change of acceleration)
+
+min(a,b) = a<b?a:b
+
+# Trapezoidal acceleration profile
+trapezoidal = "0 1  1 1  1 0  0 0  0 -1  -1 -1  -1 0"
+
+# Constant acceleration profile
+constant    = "1 1  1 1  0 0  0 0  -1 -1  -1 -1  0 0"
+
+B(i) = i<0?0:word(accel_profile,int(i)*2+1)*amax
+BB(i,j) = i<0?0:word(accel_profile,int(i)*2+j)*amax
+B(i) = BB(i,1)
+C(i) = BB(i,2)-BB(i,1)
+D(i) = 0
+
+jerk(x) = (acceleration(x)-acceleration(x-0.01))/0.01
+acceleration(x) = x<0?1/0: x<10 ? B(x) + C(x)*(x-int(x)) + D(x)/2*(x-int(x))**2: 0
+
+min(a,b)=a<b?a:b
+v0(x) = x<1?0:x>10?0:sum [i=1:int(x)] B(i-1) + C(i-1)/2
+velocity(x) = x<0?1/0: x<10 ? v0(x) + B(x)*(x-int(x)) + C(x)*(x-int(x))**2/2 : 0
+
+xx(x,dx) = (i=int(x), x<0?1/0: x<10 ? v0(i)*dx + B(i)*dx*dx/2. + C(i)*dx**3./6. : 0)
+xi(x) = (dx=x-int(x), xx(x,dx))
+x0(x) = (x<1?0: sum [i=0:min(10,int(x-1))] xx(i,1.0) )
+position(x) = x0(x) + xi(x)
