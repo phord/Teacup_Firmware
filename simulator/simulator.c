@@ -315,6 +315,8 @@ bool _READ(pin_t pin) {
   return state[pin];
 }
 
+static void sim_endstop( int axis , bool on ) ;
+
 void _WRITE(pin_t pin, bool s) {
   bool old_state = state[pin];
   uint64_t nseconds = sim_runtime_ns();
@@ -384,6 +386,39 @@ void _WRITE(pin_t pin, bool s) {
       record_pin(TRACE_POS + axis, pos[axis], nseconds);
       print_pos();
     }
+
+    /* Simulate min endstops.  "on" at -10, "off" at 0 */
+    if ( axis != AXIS_NONE ) {
+      if ( pos[axis] == -10 )
+        sim_endstop(axis , true) ;
+      else if ( pos[axis] == 0 )
+        sim_endstop(axis, false ) ;
+    }
+  }
+}
+
+static void sim_endstop( int axis , bool on )
+{
+  sim_info("Endstop: %c-AXIS=%s", "XYZE???"[axis], on?"ON":"OFF");
+  switch ( axis ) {
+  case X_AXIS:
+    #ifdef X_INVERT_MIN
+      on = !on ;
+    #endif
+    state[X_MIN_PIN] = on;
+    break;
+  case Y_AXIS:
+    #ifdef Y_INVERT_MIN
+      on = !on ;
+    #endif
+    state[Y_MIN_PIN] = on;
+    break;
+  case Z_AXIS:
+    #ifdef Z_INVERT_MIN
+      on = !on ;
+    #endif
+    state[Z_MIN_PIN] = on;
+    break;
   }
 }
 
