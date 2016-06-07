@@ -42,7 +42,7 @@
 
 # MCU ?= atmega168
 # MCU ?= atmega328p
-MCU ?= atmega644
+# MCU ?= atmega644
 # MCU ?= atmega644
 # MCU ?= atmega1284p
 # MCU ?= atmega1280
@@ -86,14 +86,14 @@ UPLOADER ?= avrdude
 # UPLOADER = <path-to-arduino-folder>/hardware/tools/avrdude
 
 ifndef UPLOADER_FLAGS
-UPLOADER_FLAGS  = -c stk500v2
+UPLOADER_FLAGS  = -D -c stk500v2
 # UPLOADER_FLAGS += -b 19200
 # UPLOADER_FLAGS += -b 57600
 UPLOADER_FLAGS += -b 115200
 UPLOADER_FLAGS += -p $(MCU)
 # UPLOADER_FLAGS += -P COM1
 # UPLOADER_FLAGS += -P /dev/ttyACM0
-UPLOADER_FLAGS += -P /dev/ttyUSB0
+UPLOADER_FLAGS += -P /dev/ttyACM0
 # UPLOADER_FLAGS += -C <path-to-arduino-folder>/hardware/tools/avrdude.conf
 endif
 
