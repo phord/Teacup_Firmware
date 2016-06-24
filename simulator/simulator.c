@@ -46,14 +46,16 @@ int use_color = 1;              ///< 0=No ANSI colors, 1=Use ANSI colors
 int show_pintous = 0;           ///< Show pin activity on console
 int trace_gcode = 0;            ///< show gcode on the console
 int trace_pos = 0;              ///< show print head position on the console
+int trace_uart = 0;             ///< show UART output on console (as gcode)
 
-const char * shortopts = "qgpvt:o::T::";
+const char * shortopts = "qugpvt:o::T::";
 struct option opts[] = {
   { "no-color", no_argument, &use_color , 0 },
   { "color", no_argument, &use_color , 1 },
   { "pinouts", no_argument, &show_pintous , 1 },
   { "quiet", no_argument, &verbose , 0 },
   { "verbose", no_argument, NULL, 'v' },
+  { "uart", no_argument, NULL, 'u' },
   { "gcode", no_argument, NULL, 'g' },
   { "pos", no_argument, NULL, 'p' },
   { "time-scale", required_argument, NULL, 't' },
@@ -68,6 +70,7 @@ static void usage(const char *name) {
   printf("   -q || --quiet                 show less output\n");
   printf("   -v || --verbose               show more output\n");
   printf("   -g || --gcode                 show gcode on console as it is processed\n");
+  printf("   -u || --uart                  show uart output on console\n");
   printf("   -p || --pos                   show head position on console\n");
   printf("   --pinouts                     show pin output activity as letters [A-Pa-p]\n");
   printf("   --no-color                    Do not use ANSI colors in output\n");
@@ -101,6 +104,9 @@ void sim_start(int argc, char** argv) {
       break;
     case 'g':
       trace_gcode = 1;
+      break;
+    case 'u':
+      trace_uart = 1;
       break;
     case 'p':
       trace_pos = 1;
@@ -247,7 +253,7 @@ void sim_gcode_ch(char ch) {
       gcode_buffer[gcode_buffer_index] = 0;
       gcode_buffer_index = 0;
 
-      if (trace_gcode) {
+      if (trace_gcode || trace_uart) {
         clearline();
         fyellow();
         printf("%s\n", gcode_buffer);
@@ -270,6 +276,16 @@ void sim_gcode_ch(char ch) {
 void sim_gcode(const char msg[]) {
   for ( ; *msg ; msg++ ) sim_gcode_ch(*msg);
   sim_gcode_ch(0);
+}
+
+void sim_uart_ch(char ch) {
+  if (trace_uart)
+    sim_gcode_ch(ch);
+}
+
+void sim_uart(const char msg[]) {
+  if (trace_uart)
+    sim_gcode(msg);
 }
 
 void sim_error(const char msg[]) {

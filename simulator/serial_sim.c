@@ -133,6 +133,7 @@ uint8_t serial_popchar(void) {
 void serial_writechar(uint8_t data) {
   sim_assert(serial_initialised, "serial interface not initialised");
   record_comment_stream((char)data);
+  sim_uart_ch((char)data);
   if (serial_fd) {
     ssize_t count;
     count = write(serial_fd, &data, 1);
@@ -145,6 +146,7 @@ void serial_writestr(uint8_t *data) {
   const char *str = (char *)data;
   sim_assert(serial_initialised, "serial interface not initialised");
   record_comment(str);
+  sim_uart(str);
   if (serial_fd) {
     ssize_t count;
     count = write(serial_fd, str, strlen(str));
