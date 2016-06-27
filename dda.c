@@ -126,6 +126,15 @@ void dda_new_startpoint(void) {
 }
 
 #ifdef ACCELERATION_EXPONENTIAL
+
+// Alpha is scaled up by 8 bits
+#define ALPHA_SCALER 10000
+#define VMAX (dda->endpoint.F * dda->fast_spm / 1000 / 60)   ///< Max Velocity in mm/s
+//#define VMAX (dda->endpoint.F * dda->fast_spm * 100 / 6)   ///< Max Velocity in steps/s
+// Acceleration in steps/s^2
+//             mm/ss           steps/m        m/mm  = steps/ss
+#define AMAX (ACCELERATION * dda->fast_spm / 1000)
+
 // Calculate the desired velocity at time 't' of the exponential curve function
 // t is in ticks; dda has the rest of the parameters
 // returns velocity in "ticks/step"; that is, 1/v * ticks/second * mm/steps
@@ -133,9 +142,13 @@ uint32_t exponential_velocity(uint32_t t, DDA* dda)
 {
   double u = t ;
   u *= dda->alpha ;
+  u /= ALPHA_SCALER;
+  u /= F_CPU;
 
   double v = 1.0 - exp(-u*u*u);
-  return dda->c_min / v;
+  v *= VMAX;
+  if (v < 0.001) v = 0.001;
+  return F_CPU/v;
 }
 #endif
 
@@ -499,9 +512,6 @@ void dda_create(DDA *dda, const TARGET *target) {
       // Given machine limits on Amax and Jmax, and calculating Vmax from F
       //  the max possible 'alpha' is:
       // alpha = min( abs(Amax / 1.1754 / Vmax) , sqrt( abs(Jmax / 2.1524 / Vmax) ) )
-      #define VMAX (dda->endpoint.F / 60)   ///< Max Velocity in mm/s
-      //#define VMAX (dda->endpoint.F * dda->fast_spm * 100 / 6)   ///< Max Velocity in steps/s
-      #define AMAX (ACCELERATION)
       // #define JMAX (MAX_JERK_X)
 
       // dda->fast_axis = i;
@@ -510,8 +520,7 @@ void dda_create(DDA *dda, const TARGET *target) {
       // dda->fast_spm = pgm_read_dword(&steps_per_m_P[i]);
 
       // Ignoring JMAX for now
-      // Alpha is scaled up by 20 bits
-      #define ALPHA ((AMAX * 65536 * 1.1754) * 60 * 4 / dda->endpoint.F)
+      #define ALPHA ((AMAX * ALPHA_SCALER / 1.1754) * 60 / dda->endpoint.F)
 
       // c_min is the fastest we can move (least time between steps)
       dda->c_min = move_duration / dda->endpoint.F;
@@ -533,24 +542,29 @@ void dda_create(DDA *dda, const TARGET *target) {
       // time(ticks) = (distance(mm) / mm/min) * 60secs/min * F_CPU ticks/sec
       // time(ticks) = (distance(um) * mm/1000um / mm/min) * 60secs/min * F_CPU ticks/sec
       dda->alpha = ALPHA;
-      dda->Td = muldiv(distance , 60 * F_CPU / 1000 , dda->endpoint.F );
-      dda->Ts = muldiv(2200 MS, dda->alpha, 1<<20);
+      //dda->Td = muldiv(distance , 60 * (F_CPU / 1000) , dda->endpoint.F );
+      dda->Td = dda->total_steps * dda->c_min;
+      dda->Ts = muldiv(2200 MS, ALPHA_SCALER , dda->alpha);
 
       if (dda->Td < dda->Ts*2 ) {
         // Ramp-time is too long.  VMax is unattainable.  Adjust VMax and Alpha
         // FIXME: I thought I knew how to do this, but my math is either wrong
         // or depends on Jmax which I don't have.  For now, we will rely on
         // the fact that we can accelerate and decelerate at the same time.
-        // This produces twice the expected jerk, but since are not constraining
+        // This produces twice the expected jerk, but since we are not constraining
         // jerk yet, we don't care.
       }
 
-      dda->c = exponential_velocity(TICK_TIME, dda)/2;
+      dda->c = exponential_velocity(TICK_TIME/2, dda);
 
       if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
-        sersendf_P(PSTR("dx=%luum;F=%lu;alpha=%lu;Vmax=%lu;Td=%lu;Ts=%lu;Cmin=%lu;c=%lu\n"),
-                   distance, dda->endpoint.F, ALPHA, VMAX, dda->Td, dda->Ts,
-                   dda->c_min, dda->c);
+        sersendf_P(PSTR("\ndx=%luum;dx=%lu steps;F=%u;alpha=%lu;Amax=%lu;Vmax=%lu;Td=%lu;Ts=%lu;"),
+                   distance, dda->total_steps,dda->endpoint.F, (unsigned long)ALPHA/ALPHA_SCALER,
+                   AMAX, VMAX, dda->Td, dda->Ts);
+
+       if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+         sersendf_P(PSTR("Cmin=%lu;c=%lu\n"),
+                    (unsigned long)dda->c_min, dda->c);
 
     #else
       dda->c = move_duration / dda->endpoint.F;
