@@ -266,8 +266,10 @@ typedef struct {
   uint32_t          elapsed;    ///< Time elapsed during accel/decel
   uint32_t          Ts;         ///< Time to accelerate/decelerate
   uint32_t          Td;         ///< Time to cruise
-  uint32_t          c_min;      ///< Vmax
+  uint32_t          vmax;       ///< Vmax
+  uint32_t          c_min;      ///< pre-calc vmax step rate
   uint32_t          alpha;      ///< alpha time scaler
+  uint8_t           id;
   #endif
 
 	#ifdef ACCELERATION_REPRAP
@@ -296,11 +298,11 @@ typedef struct {
   // point and the target. Required to obtain the jerk between 2 moves.
   // Note: x_delta and co are in steps, not um.
   axes_int32_t      delta_um;
+  #endif
   // Number the moves to be able to test at the end of lookahead if the moves
   // are the same. Note: we do not need a lot of granularity here: more than
   // MOVEBUFFER_SIZE is already enough.
   uint8_t           id;
-  #endif
 	#endif
 	#ifdef ACCELERATION_TEMPORAL
   axes_uint32_t     step_interval;   ///< time between steps on each axis

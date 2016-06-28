@@ -137,7 +137,7 @@ void dda_new_startpoint(void) {
 
 // Calculate the desired velocity at time 't' of the exponential curve function
 // t is in ticks; dda has the rest of the parameters
-// returns velocity in "ticks/step"; that is, 1/v * ticks/second * mm/steps
+// returns velocity in "steps/second"; that is, 1/v * ticks/second * mm/steps
 uint32_t exponential_velocity(uint32_t t, DDA* dda)
 {
   double u = t ;
@@ -146,9 +146,9 @@ uint32_t exponential_velocity(uint32_t t, DDA* dda)
   u /= F_CPU;
 
   double v = 1.0 - exp(-u*u*u);
-  v *= VMAX;
-  if (v < 0.001) v = 0.001;
-  return F_CPU/v;
+  uint32_t result = v * VMAX;
+  if (!result) result=1;
+  return result;
 }
 #endif
 
@@ -555,7 +555,9 @@ void dda_create(DDA *dda, const TARGET *target) {
         // jerk yet, we don't care.
       }
 
-      dda->c = exponential_velocity(TICK_TIME/2, dda);
+      dda->elapsed = 0;
+      dda->vmax = VMAX;
+      dda->c = F_CPU / exponential_velocity(TICK_TIME/2, dda);
 
       if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
         sersendf_P(PSTR("\ndx=%luum;dx=%lu steps;F=%u;alpha=%lu;Amax=%lu;Vmax=%lu;Td=%lu;Ts=%lu;"),
@@ -736,6 +738,10 @@ void dda_step(DDA *dda) {
 		move_state.step_no++;
 	#endif
 
+  #ifdef ACCELERATION_EXPONENTIAL
+		dda->elapsed += dda->c ;
+	#endif
+
   #ifdef ACCELERATION_TEMPORAL
     /** How is this ACCELERATION TEMPORAL expected to work?
 
@@ -874,6 +880,12 @@ void dda_clock() {
   int32_t move_n;
   uint8_t recalc_speed;
   uint8_t current_id ;
+  #endif
+
+  #ifdef ACCELERATION_EXPONENTIAL
+  uint32_t move_c;
+  uint8_t current_id ;
+  uint32_t velocity , elapsed;
   #endif
 
   dda = queue_current_movement();
@@ -1045,6 +1057,39 @@ void dda_clock() {
         }
       ATOMIC_END
     }
+  #endif
+
+  #ifdef ACCELERATION_EXPONENTIAL
+    ATOMIC_START
+      current_id = dda->id;
+      elapsed = dda->elapsed;
+    ATOMIC_END
+
+    if (elapsed < dda->Ts) {
+      velocity = exponential_velocity(elapsed + TICK_TIME/2, dda);
+    }
+    else {
+      velocity = dda->vmax ;
+    }
+    if (elapsed > dda->Td) {
+      velocity -= exponential_velocity(elapsed - dda->Td + TICK_TIME/2, dda);
+    }
+
+    // Avoid recalculating the speed during the whole cruise phase
+    if (velocity == dda->vmax ) {
+      move_c = dda->c_min;
+    }
+    else {
+      // faster divide available?
+      move_c = F_CPU / velocity;
+    }
+
+    // Write results.
+    ATOMIC_START
+      if (current_id == dda->id) {
+        dda->c = move_c;
+      }
+    ATOMIC_END
   #endif
 }
 
