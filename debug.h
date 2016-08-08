@@ -14,7 +14,7 @@
   particular responses from firmware such as RepRap Host or ReplicatorG. Use
   with serial terminal or other suitable talker only.
 */
-//#define DEBUG
+#define DEBUG
 
 #ifdef	DEBUG
   #define DEBUG_ECHO       1

@@ -125,6 +125,20 @@ void dda_new_startpoint(void) {
   startpoint_steps.axis[E] = um_to_steps(startpoint.axis[E], E);
 }
 
+#ifdef ACCELERATION_EXPONENTIAL
+// Calculate the desired velocity at time 't' of the exponential curve function
+// t is in ticks; dda has the rest of the parameters
+// returns velocity in "ticks/step"; that is, 1/v * ticks/second * mm/steps
+uint32_t exponential_velocity(uint32_t t, DDA* dda)
+{
+  double u = t ;
+  u *= dda->alpha ;
+
+  double v = 1.0 - exp(-u*u*u);
+  return dda->c_min / v;
+}
+#endif
+
 /*! CREATE a dda given current_position and a target, save to passed location so we can write directly into the queue
 	\param *dda pointer to a dda_queue entry to overwrite
 	\param *target the target position of this move
@@ -328,7 +342,9 @@ void dda_create(DDA *dda, const TARGET *target) {
           move_duration = md_candidate;
       }
 		#else
-			// pre-calculate move speed in millimeter microseconds per step minute for less math in interrupt context
+			// pre-calculate move speed in millimeter microseconds per step minute for
+			// less math in interrupt context
+
 			// mm (distance) * 60000000 us/min / step (total_steps) = mm.us per step.min
 			//   note: um (distance) * 60000 == mm * 60000000
 			// so in the interrupt we must simply calculate
@@ -470,8 +486,73 @@ void dda_create(DDA *dda, const TARGET *target) {
           dda->c = dda->step_interval[i];
         }
       }
+    #elif defined ACCELERATION_EXPONENTIAL
+      // Setup velocity planner for exponential motion planner
+      // described in "Exponential Trajectory Generation for Point to Point Motions",
+      // Z. Rymansaib, P. Iravani, M.N.Sahinkaya, 2013,
+      // http://staff.bath.ac.uk/ensmns/Publications/pc074.pdf
 
-		#else
+      // Realistically we need to calculate the maximum jerk on each axis.
+      // Jerk is given in mm/min when it should be given in mm/s^3.  Since we
+      // don't have any maximum Jerk limit we can use, let's ignore it for now.
+
+      // Given machine limits on Amax and Jmax, and calculating Vmax from F
+      //  the max possible 'alpha' is:
+      // alpha = min( abs(Amax / 1.1754 / Vmax) , sqrt( abs(Jmax / 2.1524 / Vmax) ) )
+      #define VMAX (dda->endpoint.F / 60)   ///< Max Velocity in mm/s
+      //#define VMAX (dda->endpoint.F * dda->fast_spm * 100 / 6)   ///< Max Velocity in steps/s
+      #define AMAX (ACCELERATION)
+      // #define JMAX (MAX_JERK_X)
+
+      // dda->fast_axis = i;
+      // dda->total_steps = dda->delta[i];
+      // dda->fast_um = delta_um[i];
+      // dda->fast_spm = pgm_read_dword(&steps_per_m_P[i]);
+
+      // Ignoring JMAX for now
+      // Alpha is scaled up by 20 bits
+      #define ALPHA ((AMAX * 65536 * 1.1754) * 60 * 4 / dda->endpoint.F)
+
+      // c_min is the fastest we can move (least time between steps)
+      dda->c_min = move_duration / dda->endpoint.F;
+      if (dda->c_min < c_limit) {
+        dda->c_min = c_limit;
+        dda->endpoint.F = move_duration / dda->c_min;
+      }
+
+      // Lookahead can deal with 16 bits ( = 1092 mm/s), only.
+      if (dda->endpoint.F > 65535)
+        dda->endpoint.F = 65535;
+
+      // distance(um) = steps / ( steps_per_meter / (1000000um/meter) )
+      // time(seconds) = distance(mm) / mm/min * 60s/min ;
+      // TODO verify distance = dda->total_steps / ( dda->fast_spm / 1000000 )
+      //                      = dda->total_steps * 1000000 / ( dda->fast_spm )
+      //                      = muldiv(dda->total_steps,1000000, dda->fast_spm)
+      // time(s) = (distance(mm) / mm/min) * 60secs/min
+      // time(ticks) = (distance(mm) / mm/min) * 60secs/min * F_CPU ticks/sec
+      // time(ticks) = (distance(um) * mm/1000um / mm/min) * 60secs/min * F_CPU ticks/sec
+      dda->alpha = ALPHA;
+      dda->Td = muldiv(distance , 60 * F_CPU / 1000 , dda->endpoint.F );
+      dda->Ts = muldiv(2200 MS, dda->alpha, 1<<20);
+
+      if (dda->Td < dda->Ts*2 ) {
+        // Ramp-time is too long.  VMax is unattainable.  Adjust VMax and Alpha
+        // FIXME: I thought I knew how to do this, but my math is either wrong
+        // or depends on Jmax which I don't have.  For now, we will rely on
+        // the fact that we can accelerate and decelerate at the same time.
+        // This produces twice the expected jerk, but since are not constraining
+        // jerk yet, we don't care.
+      }
+
+      dda->c = exponential_velocity(TICK_TIME, dda)/2;
+
+      if (DEBUG_DDA && (debug_flags & DEBUG_DDA))
+        sersendf_P(PSTR("dx=%luum;F=%lu;alpha=%lu;Vmax=%lu;Td=%lu;Ts=%lu;Cmin=%lu;c=%lu\n"),
+                   distance, dda->endpoint.F, ALPHA, VMAX, dda->Td, dda->Ts,
+                   dda->c_min, dda->c);
+
+    #else
       dda->c = move_duration / dda->endpoint.F;
       if (dda->c < c_limit)
         dda->c = c_limit;
