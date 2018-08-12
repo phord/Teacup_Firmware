@@ -251,7 +251,7 @@ DEFINE_TEMP_SENSOR(bed,      TT_THERMISTOR, AIO14, THERMISTOR_BED)
 DEFINE_HEATER(extruder, DIO10,   0,      1,     100)
 DEFINE_HEATER(bed,      DIO8,    0,      1,     100)
 DEFINE_HEATER(fan,      DIO9,    0,      1,     100)
-DEFINE_HEATER(bltouch,  DIO11,   0,      1,     100)
+DEFINE_HEATER(bltouch,  DIO4,    0,      1,     100)
 
 #define HEATER_EXTRUDER HEATER_extruder
 #define HEATER_BED HEATER_bed
