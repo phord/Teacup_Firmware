@@ -36,6 +36,10 @@ typedef struct {
 		uint8_t					seen_P	:1;
 		uint8_t					seen_T	:1;
 		uint8_t					seen_N	:1;
+    uint8_t         seen_I  :1;
+    uint8_t         seen_J  :1;
+    // uint8_t         seen_K  :1;
+    uint8_t         seen_R  :1;
 		uint8_t					seen_checksum				:1; ///< seen a checksum?
 		uint8_t					seen_semi_comment		:1; ///< seen a semicolon?
 		uint8_t					seen_parens_comment	:1; ///< seen an open parenthesis
@@ -56,6 +60,11 @@ typedef struct {
 	TARGET						target;		///< target position: X, Y, Z, E and F
 
 	uint8_t						T;				///< T word (tool index)
+
+  int32_t           I;        ///< I word (arc center)
+  int32_t           J;        ///< J word (arc center)
+  // int32_t           K;        ///< K word (arc center)
+  int32_t           R;        ///< R word (arc radius)
 
 	uint8_t						checksum_read;				///< checksum in gcode command
 	uint8_t						checksum_calculated;	///< checksum we calculated

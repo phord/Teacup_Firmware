@@ -59,6 +59,10 @@ typedef struct {
   // bresenham counters
   axes_int32_t      counter;    ///< counter for total_steps vs each axis
 
+  // bresenham arc deltas
+  int32_t err_dx, err_dy;       ///< delta-err on each axis, adjusted after each step
+  int32_t dd;                   ///< Error increment/decrement, adjust for each quadrant
+
   #ifdef ACCELERATION_TEMPORAL
   axes_uint32_t     time;       ///< time of the last step on each axis
   uint32_t          last_time;  ///< time of the last step of any axis
