@@ -179,6 +179,14 @@ void do_heater(heater_t index, uint8_t value) {
       uint8_t pwm_value;
 
       if (heaters[index].pwm_type == SERVO_PWM) {
+        // Limit range of motion without scaling
+        // TODO: Add a min_value for servos
+        // if (value > heaters[index].max_value)
+        //   value = heaters[index].max_value;
+
+        // Convert degrees to pulse width in pwm ticks
+        // 600us + value * 10us/degree; 90 deg = 1500us
+        // (600 + value * 10 ) / (F_CPU / 256 / 1024)
         pwm_value = muldiv(SERVO_DEGREE_OFFSET + value,
                            256UL * SERVO_US_PER_DEGREE, F_CPU / 1024);
       } else {
@@ -187,11 +195,21 @@ void do_heater(heater_t index, uint8_t value) {
         pwm_value = (uint8_t)((heaters[index].max_value * value) / 256);
       }
 
-      *(heaters[index].heater_pwm) = heaters[index].invert ?
-        (255 - pwm_value) : pwm_value;
+      if (heaters[index].invert) pwm_value = 255 - pwm_value;
+
+      *(heaters[index].heater_pwm) = pwm_value;
 
       if (DEBUG_PID && (debug_flags & DEBUG_PID))
         sersendf_P(PSTR("PWM{%u = %u}\n"), index, *heaters[index].heater_pwm);
+
+// if (index==3) {
+//   sersendf_P(PSTR("Set(%u, %u, %u):  %u %u %u %lu %lu\n"),
+//         index, value, *(heaters[index].heater_pwm),
+//         heaters[index].masked_pin, heaters[index].pwm_type, heaters[index].invert,
+//         SERVO_DEGREE_OFFSET, SERVO_US_PER_DEGREE);
+// }
+
+
     }
     else {
       if ((value >= HEATER_THRESHOLD && ! heaters[index].invert) ||
