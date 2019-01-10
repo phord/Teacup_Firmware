@@ -35,7 +35,8 @@
 #define STEPS_PER_M_X            160000
 #define STEPS_PER_M_Y            160000
 #define STEPS_PER_M_Z            800000
-#define STEPS_PER_M_E            533333
+// #define STEPS_PER_M_E            533333
+#define STEPS_PER_M_E            837199 // e3d Titan Direct extruder
 
 /** \def MAXIMUM_FEEDRATE_X MAXIMUM_FEEDRATE_Y MAXIMUM_FEEDRATE_Z MAXIMUM_FEEDRATE_E
   Used for G0 rapid moves and as a cap for all other feedrates.
@@ -51,7 +52,7 @@
 */
 #define SEARCH_FEEDRATE_X        250
 #define SEARCH_FEEDRATE_Y        250
-#define SEARCH_FEEDRATE_Z        250
+#define SEARCH_FEEDRATE_Z        100
 
 /** \def ENDSTOP_CLEARANCE_X ENDSTOP_CLEARANCE_Y ENDSTOP_CLEARANCE_Z
 

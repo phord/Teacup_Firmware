@@ -68,11 +68,11 @@
 
 #define Z_STEP_PIN               DIO46
 #define Z_DIR_PIN                DIO48
-#define Z_MIN_PIN                DIO18
+#define Z_MIN_PIN                DIO18          // BLTouch
 //#define Z_MAX_PIN                DIO19
 #define Z_ENABLE_PIN             DIO62
 #define Z_INVERT_DIR
-#define Z_INVERT_MIN
+//#define Z_INVERT_MIN
 //#define Z_INVERT_MAX
 #define Z_INVERT_ENABLE
 
