@@ -97,7 +97,7 @@ static void clock_250ms(void) {
     temp_periodic_print();
 
     if (temp_waiting()) {
-      serial_writestr_P(PSTR("Waiting for target temp\n"));
+      serial_writestr_P(PSTR("busy: Waiting for target temp\n"));
       wait_for_temp = 1;
     }
     else {
