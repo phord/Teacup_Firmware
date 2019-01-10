@@ -18,7 +18,7 @@ struct point {
   int32_t x, y, z;
 };
 
-// Accept exactly three points for bed leveling
+/// Registered bed leveling positions
 static uint8_t level_index = 0;
 static struct point bed_level_map[3];
 
@@ -67,10 +67,6 @@ void bed_level_register(int32_t x, int32_t y, int32_t z) {
   if (i == level_index)
     ++level_index;
 
-  // Nothing more to do until we have three points
-  if (level_index < 3)
-    return;
-
   // We have three points. Try to calculate the plane of the bed.
   if (!bed_plane_calculate())
     --level_index;
@@ -105,9 +101,10 @@ void bed_level_report() {
 int32_t bed_level_adjustment(int32_t x, int32_t y) {
   int32_t za, zb;
 
-  // No adjustment if not calibrated yet
-  if (!bed_leveling_active())
+  if (!bed_leveling_active()) {
+    // No bed-leveling probes completed yet. No z-offset.
     return 0;
+  }
 
   x = scale_to_dum(x);
   y = scale_to_dum(y);
@@ -135,20 +132,45 @@ int bed_plane_calculate() {
   // Draw two vectors on the plane, u = B-A and v = C-A
   int32_t Ui, Uj, Uk, Vi, Vj, Vk;
 
-  // U = vector(QP)
-  Ui = Q->x - P->x;
-  Uj = Q->y - P->y;
-  Uk = Q->z - P->z;
+  if (level_index == 0) {
+    return 0;
+  }
 
-  // V = vector(RP)
-  Vi = R->x - P->x;
-  Vj = R->y - P->y;
-  Vk = R->z - P->z;
+  if (level_index == 1) {
+    // One point registered. Pretend the bed is level.
+    a = b = 0;
+    c = 1;
+  } else {
+    // U = vector(QP)
+    Ui = Q->x - P->x;
+    Uj = Q->y - P->y;
+    Uk = Q->z - P->z;
 
-  // Find normal vector (a,b,c) = (U x V) and is perpendicular to the plane
-  a = Uj*Vk - Uk*Vj;
-  b = Uk*Vi - Ui*Vk;
-  c = Ui*Vj - Uj*Vi;
+    if (level_index == 2) {
+      // Two points registered. Assume it's level about the line
+      // Find V perpendicular to U
+      if (Uj == 0) {
+        Vi = 0;
+        Vj = 10;
+      } else {
+        Vi = 10;
+        Vj = -muldiv(Ui, 10, Uj);
+      }
+      Vk = Uk;
+    } else {
+      // Three points registered.  Calculate the real plane.
+
+      // V = vector(RP)
+      Vi = R->x - P->x;
+      Vj = R->y - P->y;
+      Vk = R->z - P->z;
+    }
+
+    // Find normal vector (a,b,c) = (U x V) and is perpendicular to the plane
+    a = Uj*Vk - Uk*Vj;
+    b = Uk*Vi - Ui*Vk;
+    c = Ui*Vj - Uj*Vi;
+  }
 
   // Notes:
   //  * Ignore K (constant) by translating plane to pass through origin at P (0,0,0)
@@ -180,6 +202,10 @@ int bed_plane_calculate() {
   Bq = b / c;
   Br = b % c;
   C = c;
+
+  if (!bed_leveling_active()) {
+    return 1;
+  }
 
   int ret = 1;
   // Sanity check
