@@ -58,6 +58,14 @@ static const axes_uint32_t PROGMEM maximum_feedrate_P = {
   MAXIMUM_FEEDRATE_E
 };
 
+/// \var endstop_skipped_steps
+/// \brief number of steps we skipped on the fast-axis due to an endstop
+static uint32_t BSS endstop_skipped_steps;
+
+/// \var endstop_position_um
+/// \brief Actual position of head after premature halt due to endstops
+axes_int32_t BSS endstop_position_um;
+
 #ifdef ACCELERATION_RAMPING
 /// \var c0_P
 /// \brief Initialization constant for the ramping algorithm. Timer cycles for
@@ -95,6 +103,20 @@ int8_t get_direction(DDA *dda, enum axis_e n) {
     return 1;
   else
     return -1;
+}
+
+/*! Find the delta_um in move_state so far
+*/
+void move_to_delta_um(DDA *dda, axes_int32_t delta_um) {
+  uint32_t axis_um;
+  enum axis_e i;
+
+  for (i = X; i < AXIS_COUNT; i++) {
+    axis_um = steps_to_um(move_state.steps[i], i);
+    delta_um[i] = (int32_t)get_direction(dda, i) * axis_um;
+  }
+
+  delta_to_axes(delta_um);
 }
 
 /*! Inititalise DDA movement structures
@@ -516,6 +538,7 @@ void dda_start(DDA *dda) {
   move_state.counter[X] = move_state.counter[Y] = move_state.counter[Z] = \
     move_state.counter[E] = -(dda->total_steps >> 1);
   move_state.endstop_stop = 0;
+  endstop_skipped_steps = 0;
   memcpy(&move_state.steps[X], &dda->delta[X], sizeof(uint32_t) * 4);
   #ifdef ACCELERATION_TEMPORAL
     move_state.time[X] = move_state.time[Y] = \
@@ -715,6 +738,20 @@ void dda_step(DDA *dda) {
       z_disable();
     #endif
 
+    // Remember the real head position after hitting an endstop
+    if (endstop_skipped_steps || move_state.steps[dda->fast_axis] ) {
+      axes_int32_t delta_um;
+      enum axis_e i;
+      // If the last movement skipped some steps while searching for an endstop. Add them
+      // back in and calculate the real head position.
+      move_state.steps[dda->fast_axis] += endstop_skipped_steps;
+      move_to_delta_um(dda, delta_um);
+
+      for (i = X; i < AXIS_COUNT; i++) {
+        endstop_position_um[i] = dda->endpoint.axis[i] - delta_um[i];
+      }
+    }
+
     // No need to restart timer here.
     // After having finished, dda_start() will do it.
   }
@@ -846,6 +883,7 @@ void dda_clock() {
 
           dda->rampdown_steps = move_step_no;
           dda->total_steps = move_step_no * 2;
+          endstop_skipped_steps = move_state.steps[dda->fast_axis] - move_step_no;
           move_state.steps[dda->fast_axis] = move_step_no;
         ATOMIC_END
         // Not atomic, because not used in dda_step().
@@ -951,15 +989,9 @@ void update_current_position() {
   enum axis_e i;
 
   if (dda != NULL) {
-    uint32_t axis_um;
     axes_int32_t delta_um;
 
-    for (i = X; i < AXIS_COUNT; i++) {
-      axis_um = steps_to_um(move_state.steps[i], i);
-      delta_um[i] = (int32_t)get_direction(dda, i) * axis_um;
-    }
-
-    delta_to_axes(delta_um);
+    move_to_delta_um(dda, delta_um);
 
     for (i = X; i < AXIS_COUNT; i++) {
       current_position.axis[i] = dda->endpoint.axis[i] - delta_um[i];

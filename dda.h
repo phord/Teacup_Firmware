@@ -169,6 +169,9 @@ extern TARGET startpoint_steps;
 /// current_position holds the machine's current position. this is only updated when we step, or when G92 (set home) is received.
 extern TARGET current_position;
 
+/// Actual position of last endstop triggered halt
+extern axes_int32_t endstop_position_um;
+
 /*
   methods
 */
