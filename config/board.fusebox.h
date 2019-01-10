@@ -238,7 +238,9 @@ DEFINE_TEMP_SENSOR(bed,      TT_THERMISTOR, AIO14, THERMISTOR_BED)
   for this pin, e.g. for a MOSFET with a driver.
 
   Set 'pwm' to ...
-    1  for using hardware PWM on a PWM-able pin and software PWM on other pins.
+    3  for using hardware PWM on a servo, giving position in degrees
+    2  for using hardware PWM on a PWM-able pin and software PWM on other pins.
+    1  for using software PWM always.
     0  for using on/off on a PWM-able pin, too.
 
   Using PWM usually gives smoother temperature control but can conflict

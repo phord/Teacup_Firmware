@@ -73,7 +73,8 @@ typedef struct {
 typedef enum {
   NO_PWM = 0,
   SOFTWARE_PWM = 1,
-  HARDWARE_PWM = 2
+  HARDWARE_PWM = 2,
+  SERVO_PWM = 3
 } pwm_type_t;
 
 #ifndef FORCE_SOFTWARE_PWM

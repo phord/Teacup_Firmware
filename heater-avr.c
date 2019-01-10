@@ -12,6 +12,13 @@
 #include	"crc.h"
 #include "sersendf.h"
 #include "debug.h"
+#include "dda_maths.h"
+
+// Servo characteristics; may vary for different servos
+#define SERVO_US_MINIMUM    550UL       // minimum servo pulse width at 0 degrees
+#define SERVO_US_NEUTRAL    1500UL      // Pulse width at 90 degrees
+#define SERVO_US_PER_DEGREE ((SERVO_US_NEUTRAL - SERVO_US_MINIMUM) / 90UL)
+#define SERVO_DEGREE_OFFSET (SERVO_US_MINIMUM / SERVO_US_PER_DEGREE)
 
 /// \struct heater_definition_t
 /// \brief simply holds pinout data- port, pin, pwm channel if used
@@ -32,7 +39,12 @@ typedef struct {
 // When pwm == 1 it's software pwm.
 // pwm == 0 is no pwm at all.
 // Use this macro only in DEFINE_HEATER_ACTUAL-macros.
-#define PWM_TYPE(pwm, pin) (((pwm) >= HARDWARE_PWM_START) ? ((pin ## _PWM) ? HARDWARE_PWM : SOFTWARE_PWM) : pwm)
+#define PWM_TYPE(pwm, pin) \
+  (((pwm) >= HARDWARE_PWM_START) ? \
+    ((pin ## _PWM) ? \
+      ((pwm) < HARDWARE_PWM ? HARDWARE_PWM : pwm ) : \
+      SOFTWARE_PWM ) : \
+    pwm)
 
 #undef DEFINE_HEATER_ACTUAL
 /// \brief helper macro to fill heater definition struct from config.h
@@ -163,11 +175,17 @@ void heater_init() {
 void do_heater(heater_t index, uint8_t value) {
   if (index < NUM_HEATERS) {
 
-    if (heaters[index].pwm_type == HARDWARE_PWM) {
+    if (heaters[index].pwm_type >= HARDWARE_PWM) {
       uint8_t pwm_value;
 
-      // Remember, we scale, and the timer inverts already.
-      pwm_value = (uint8_t)((heaters[index].max_value * value) / 256);
+      if (heaters[index].pwm_type == SERVO_PWM) {
+        pwm_value = muldiv(SERVO_DEGREE_OFFSET + value,
+                           256UL * SERVO_US_PER_DEGREE, F_CPU / 1024);
+      } else {
+        // HARDWARE_PWM
+        // Remember, we scale, and the timer inverts already.
+        pwm_value = (uint8_t)((heaters[index].max_value * value) / 256);
+      }
 
       *(heaters[index].heater_pwm) = heaters[index].invert ?
         (255 - pwm_value) : pwm_value;
