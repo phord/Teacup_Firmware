@@ -28,11 +28,21 @@ void queue_step(void);
 
 // add a new target to the queue
 // t == NULL means add a wait for target temp to the queue
-void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond);
+// c != NULL means draw an arc around center point
+void enqueue_move(TARGET *t, CENTER *c, uint8_t endstop_check, uint8_t endstop_stop_cond);
+
+// add a new homing movement target to the queue
+// t == NULL means add a wait for target temp to the queue
+static void enqueue_home(TARGET *, uint8_t endstop_check,
+  uint8_t endstop_stop_cond) __attribute__ ((always_inline));
+inline void enqueue_home(TARGET *t, uint8_t endstop_check,
+  uint8_t endstop_stop_cond) {
+  enqueue_move(t, 0, endstop_check, endstop_stop_cond);
+}
 
 static void enqueue(TARGET *) __attribute__ ((always_inline));
 inline void enqueue(TARGET *t) {
-  enqueue_home(t, 0, 0);
+  enqueue_move(t, 0, 0, 0);
 }
 
 // print queue status

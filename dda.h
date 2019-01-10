@@ -50,6 +50,18 @@ typedef struct {
 } TARGET;
 
 /**
+  \struct CENTER
+  \brief a center point of an arc, currently only on x,y plane
+
+  X and Y are in micrometers unless explicitely stated.
+*/
+typedef struct {
+  int32_t   y;
+  int32_t   x;
+  uint8_t   ccw               :1; ///< bool: move counter-clockwise?
+} CENTER;
+
+/**
   \struct MOVE_STATE
   \brief this struct is made for tracking the current state of the movement
 
@@ -94,6 +106,7 @@ typedef struct {
       #ifdef ACCELERATION_REPRAP
       uint8_t           accel         :1; ///< bool: speed changes during this move, run accel code
       #endif
+      uint8_t           arc           :1; ///< bool: drawing arc around a centerpoint
 
       // directions
       // As we have muldiv() now, overflows became much less an issue and
@@ -106,6 +119,8 @@ typedef struct {
     };
     uint16_t            allflags; ///< used for clearing all flags
   };
+
+  axes_int32_t      arc_center;
 
   // distances
   axes_uint32_t     delta;       ///< number of steps on each axis
@@ -189,7 +204,7 @@ void dda_init(void);
 void dda_new_startpoint(void);
 
 // create a DDA
-void dda_create(DDA *dda, const TARGET *target);
+void dda_create(DDA *dda, const TARGET *target, const CENTER *center);
 
 // start a created DDA (called from timer interrupt)
 void dda_start(DDA *dda);

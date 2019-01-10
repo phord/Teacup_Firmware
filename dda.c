@@ -179,7 +179,7 @@ void dda_new_startpoint() {
  * 6. Lookahead calculation too slow. This is handled in dda_join_moves()
  *    already.
  */
-void dda_create(DDA *dda, const TARGET *target) {
+void dda_create(DDA *dda, const TARGET *target, const CENTER *center) {
   axes_uint32_t delta_um;
   axes_int32_t steps;
   uint32_t distance;
@@ -224,6 +224,10 @@ void dda_create(DDA *dda, const TARGET *target) {
     // Give this move an identifier.
     dda->id = idcnt++;
   #endif
+
+  if (center) {
+    // TODO: Add arc calculations
+  }
 
   // Handle bot axes. They're subject to kinematics considerations.
   code_axes_to_stepper_axes(&startpoint, target, delta_um, steps);

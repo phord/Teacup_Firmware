@@ -82,7 +82,7 @@ void queue_step() {
 /// add a move to the movebuffer
 /// \note this function waits for space to be available if necessary, check queue_full() first if waiting is a problem
 /// This is the only function that modifies mb_head and it always called from outside an interrupt.
-void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
+void enqueue_move(TARGET *t, CENTER *c, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 	// don't call this function when the queue is full, but just in case, wait for a move to complete and free up the space for the passed target
 	while (queue_full())
 		delay_us(100);
@@ -97,7 +97,7 @@ void enqueue_home(TARGET *t, uint8_t endstop_check, uint8_t endstop_stop_cond) {
 
   new_movebuffer->endstop_check = endstop_check;
   new_movebuffer->endstop_stop_cond = endstop_stop_cond;
-  dda_create(new_movebuffer, t);
+  dda_create(new_movebuffer, t, c);
 
   /**
     It's pointless to queue up movements which don't actually move the stepper,
