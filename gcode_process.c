@@ -25,6 +25,7 @@
 #include	"home.h"
 #include "sd.h"
 #include "bed_leveling.h"
+#include "home_bltouch.h"
 
 /// the current tool
 uint8_t tool;
@@ -245,6 +246,8 @@ void process_gcode_command() {
         //? The S value controls the action as follows:
         //?   S0 displays the current bed leveling status
         //?   S1 registers a new point on the 3-point plane mapping
+        //?   S2 probes the Z-PROBE and registers the point found at current X,Y coordinates
+        //?   S3 use Z-PROBE to find the bed, but does not register a bed-leveling point
         //?   S5 clears all registered points and disables dynamic leveling
         //?
         //?   G29 S1 X100 Y50 Z-0.3
@@ -267,6 +270,18 @@ void process_gcode_command() {
 
             case 1:   // Register a new registration point
               bed_level_register(next_target.target.axis[X], next_target.target.axis[Y], next_target.target.axis[Z]);
+              break;
+
+            case 2:   // Probe and register a new point
+              #if defined Z_PROBE_SERVO_PIN
+                bltouch_register_level_point();
+              #endif
+              break;
+
+            case 3:   // Probe the bed but does not register a new point
+              #if defined Z_PROBE_SERVO_PIN
+                bltouch_z_probe();
+              #endif
               break;
 
             case 0:   // Report leveling status

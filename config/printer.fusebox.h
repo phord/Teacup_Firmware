@@ -77,6 +77,19 @@
 #define ENDSTOP_CLEARANCE_Y      500
 #define ENDSTOP_CLEARANCE_Z      200
 
+// WIP:
+// Z_MIN pin fires a single 5ms pulse when triggered
+#define Z_PROBE_ONESHOT_UM        3000
+#define Z_PROBE_SERVO_PIN         HEATER_BLTOUCH
+#define Z_PROBE_SERVO_PWM_DEPLOY  10
+#define Z_PROBE_SERVO_PWM_RETRACT 36            // retract and clear alarm
+// Measured offset from extruder tip
+// X:55.600,Y:28.500,Z:4.100
+#define Z_PROBE_X_OFFSET_UM     55600
+#define Z_PROBE_Y_OFFSET_UM     28500
+#define Z_PROBE_Z_OFFSET_UM      1700
+#define BLTOUCH_REACT_TIME        150
+
 /** \def X_MIN X_MAX Y_MIN Y_MAX Z_MIN Z_MAX
   Soft axis limits. Define them to your machine's size relative to what your
   G-code considers to be the origin (typically the bed's center or the bed's

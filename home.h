@@ -1,6 +1,8 @@
 #ifndef _HOME_H
 #define _HOME_H
 
+#include <stdint.h>
+
 void home(void);
 
 enum axis_endstop_e {
@@ -19,5 +21,8 @@ void home_y_negative(void);
 void home_y_positive(void);
 void home_z_negative(void);
 void home_z_positive(void);
+
+extern const uint32_t fast_feedrate_P[3];
+extern const uint32_t search_feedrate_P[3];
 
 #endif /* _HOME_H */

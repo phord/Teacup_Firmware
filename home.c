@@ -9,6 +9,7 @@
 #include "dda_queue.h"
 #include "pinio.h"
 #include "gcode_parse.h"
+#include "home_bltouch.h"
 
 // Check configuration.
 #if defined X_MIN_PIN || defined X_MAX_PIN
@@ -53,13 +54,13 @@
             sqrt((double)2 * ACCELERATION * ENDSTOP_CLEARANCE_Z / 1000.))
 #endif
 
-static const uint32_t PROGMEM fast_feedrate_P[3] = {
+const uint32_t PROGMEM fast_feedrate_P[3] = {
   (SEARCH_FAST_X > SEARCH_FEEDRATE_X) ? SEARCH_FAST_X : SEARCH_FEEDRATE_X,
   (SEARCH_FAST_Y > SEARCH_FEEDRATE_Y) ? SEARCH_FAST_Y : SEARCH_FEEDRATE_Y,
   (SEARCH_FAST_Z > SEARCH_FEEDRATE_Z) ? SEARCH_FAST_Z : SEARCH_FEEDRATE_Z,
 };
 
-static const uint32_t PROGMEM search_feedrate_P[3] = {
+const uint32_t PROGMEM search_feedrate_P[3] = {
   (SEARCH_FAST_X > SEARCH_FEEDRATE_X) ? SEARCH_FEEDRATE_X : 0,
   (SEARCH_FAST_Y > SEARCH_FEEDRATE_Y) ? SEARCH_FEEDRATE_Y : 0,
   (SEARCH_FAST_Z > SEARCH_FEEDRATE_Z) ? SEARCH_FEEDRATE_Z : 0,
@@ -105,7 +106,7 @@ void home_x_positive() {
   #endif
 }
 
-/// fund Y MIN endstop
+/// find Y MIN endstop
 void home_y_negative() {
   #if defined Y_MIN_PIN
     home_axis(Y, -1, Y_MIN_ENDSTOP);
@@ -125,7 +126,11 @@ void home_y_positive() {
 /// find Z MIN endstop
 void home_z_negative() {
   #if defined Z_MIN_PIN
-    home_axis(Z, -1, Z_MIN_ENDSTOP);
+    #if defined Z_PROBE_SERVO_PIN
+      bltouch_z_home();
+    #else
+      home_axis(Z, -1, Z_MIN_ENDSTOP);
+    #endif
   #endif
 }
 
