@@ -52,7 +52,7 @@
 */
 #define SEARCH_FEEDRATE_X        250
 #define SEARCH_FEEDRATE_Y        250
-#define SEARCH_FEEDRATE_Z        100
+#define SEARCH_FEEDRATE_Z         50
 
 /** \def ENDSTOP_CLEARANCE_X ENDSTOP_CLEARANCE_Y ENDSTOP_CLEARANCE_Z
 
@@ -76,7 +76,7 @@
 */
 #define ENDSTOP_CLEARANCE_X      500
 #define ENDSTOP_CLEARANCE_Y      500
-#define ENDSTOP_CLEARANCE_Z      200
+#define ENDSTOP_CLEARANCE_Z      500
 
 // WIP:
 // Z_MIN pin fires a single 5ms pulse when triggered
@@ -86,9 +86,9 @@
 #define Z_PROBE_SERVO_PWM_RETRACT 36            // retract and clear alarm
 // Measured offset from extruder tip
 // X:55.600,Y:28.500,Z:4.100
-#define Z_PROBE_X_OFFSET_UM     55600
-#define Z_PROBE_Y_OFFSET_UM     28500
-#define Z_PROBE_Z_OFFSET_UM      1700
+#define Z_PROBE_X_OFFSET_UM     50000
+#define Z_PROBE_Y_OFFSET_UM     21000
+#define Z_PROBE_Z_OFFSET_UM      2000
 #define BLTOUCH_REACT_TIME        150
 
 /** \def X_MIN X_MAX Y_MIN Y_MAX Z_MIN Z_MAX
